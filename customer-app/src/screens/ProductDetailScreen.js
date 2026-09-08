@@ -14,7 +14,7 @@ import ProductCard from '../components/ProductCard';
 import Toast from '../components/Toast';
 import { formatPrice, getDiscountPercent, getImageUrl } from '../utils/helpers';
 
-const VariantSelector = ({ variants, selectedVariant, onSelect, productId, navigation }) => {
+const VariantSelector = ({ variants, selectedVariant, onSelect, productId, navigation, onToast }) => {
   const [attributes, setAttributes] = useState([]);
   const [selectedAttributes, setSelectedAttributes] = useState({});
   const [notifyLoading, setNotifyLoading] = useState(null);
@@ -81,9 +81,9 @@ const VariantSelector = ({ variants, selectedVariant, onSelect, productId, navig
     try {
       setNotifyLoading(variant._id || variant.id);
       await variantsAPI.notifyWhenAvailable(variant._id || variant.id);
-      Toast({ visible: true, message: "You'll be notified when available!", type: 'success' });
+      if (onToast) onToast({ visible: true, message: "You'll be notified when available!", type: 'success' });
     } catch {
-      Toast({ visible: true, message: 'Failed to set notification', type: 'error' });
+      if (onToast) onToast({ visible: true, message: 'Failed to set notification', type: 'error' });
     } finally {
       setNotifyLoading(null);
     }
@@ -103,7 +103,7 @@ const VariantSelector = ({ variants, selectedVariant, onSelect, productId, navig
       pink: '#EC4899', grey: '#6B7280', gray: '#6B7280', silver: '#C0C0C0',
       gold: '#C9A961', rose: '#F43F5E', navy: '#1E3A5F', brown: '#92400E',
       beige: '#D4C5A9', cream: '#FFFDD0', coral: '#FF6F61', teal: '#14B8A6',
-      maroon: '#7F1D1D', navy: '#1E3A5F',
+      maroon: '#7F1D1D',
     };
     const lower = String(value).toLowerCase();
     if (lower.startsWith('#')) return lower;
@@ -409,6 +409,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
   const scrollY = useRef(new Animated.Value(0)).current;
   const { addToCart } = useCart();
   const { isAuthenticated } = useAuth();
+  const MAX_QUANTITY = 10;
 
   const [variants, setVariants] = useState([]);
   const [selectedVariant, setSelectedVariant] = useState(null);
@@ -652,6 +653,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
               onSelect={handleVariantSelect}
               productId={productId}
               navigation={navigation}
+              onToast={setToast}
             />
           )}
 
@@ -699,7 +701,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
                 <Ionicons name="remove" size={18} color={COLORS.textPrimary} />
               </TouchableOpacity>
               <Text style={styles.qtyValue}>{quantity}</Text>
-              <TouchableOpacity style={styles.qtyBtn} onPress={() => setQuantity(quantity + 1)}>
+              <TouchableOpacity style={styles.qtyBtn} onPress={() => setQuantity(Math.min(MAX_QUANTITY, quantity + 1))} disabled={quantity >= MAX_QUANTITY}>
                 <Ionicons name="add" size={18} color={COLORS.textPrimary} />
               </TouchableOpacity>
             </View>

@@ -24,8 +24,6 @@ import CouponScreen from '../screens/CouponScreen';
 import NotificationScreen from '../screens/NotificationScreen';
 import ReviewScreen from '../screens/ReviewScreen';
 import VariantCompareScreen from '../screens/VariantCompareScreen';
-import LoginScreen from '../screens/LoginScreen';
-import RegisterScreen from '../screens/RegisterScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -276,15 +274,6 @@ function SettingsScreen() {
         <Text style={styles.logoutBtnText}>Logout</Text>
       </TouchableOpacity>
     </ScrollView>
-  );
-}
-
-function AuthStack() {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="Register" component={RegisterScreen} />
-    </Stack.Navigator>
   );
 }
 

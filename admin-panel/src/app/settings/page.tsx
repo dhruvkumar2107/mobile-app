@@ -180,9 +180,9 @@ export default function SettingsPage() {
               <div>
                 <label className="block text-sm font-medium text-navy mb-1.5">Timezone</label>
                 <select value={settings.timezone} onChange={(e) => setSettings({ ...settings, timezone: e.target.value })} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent">
-                  <option>Asia/Kolkata (IST)</option>
-                  <option>America/New_York (EST)</option>
-                  <option>Europe/London (GMT)</option>
+                  <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+                  <option value="America/New_York">America/New_York (EST)</option>
+                  <option value="Europe/London">Europe/London (GMT)</option>
                 </select>
               </div>
             </div>
@@ -210,7 +210,9 @@ export default function SettingsPage() {
                 </Button>
                 <input id="avatar-upload" type="file" accept="image/*" className="hidden" onChange={(e) => {
                   const file = e.target.files?.[0];
-                  if (file) Alert.alert('Avatar', `Selected: ${file.name}. Upload functionality coming soon.`);
+                  if (file) {
+                    console.log('Selected avatar:', file.name);
+                  }
                 }} />
                 <p className="text-xs text-text-muted mt-1">JPG, PNG or GIF. Max size 2MB.</p>
               </div>
@@ -262,7 +264,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-text-muted">{item.users} users</span>
-                    <Button variant="ghost" size="sm" onClick={() => Alert.alert(item.role, `Permissions: ${item.perms.join(', ')}`)}>Edit</Button>
+                    <Button variant="ghost" size="sm" onClick={() => console.log(`${item.role} permissions:`, item.perms)}>Edit</Button>
                   </div>
                 </div>
               ))}

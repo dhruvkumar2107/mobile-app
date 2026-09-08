@@ -40,7 +40,7 @@ router.post('/create-order', auth, RATE_LIMITS.payment, (req, res) => {
 
 router.post('/verify', auth, RATE_LIMITS.payment, (req, res) => {
   try {
-    const { paymentId, success } = req.body;
+    const { paymentId, razorpayPaymentId, razorpaySignature } = req.body;
     if (!paymentId || typeof paymentId !== 'string') {
       return res.status(400).json({ success: false, error: 'Valid payment ID is required' });
     }
@@ -55,16 +55,23 @@ router.post('/verify', auth, RATE_LIMITS.payment, (req, res) => {
     if (payment.amount !== order.total) {
       return res.status(400).json({ success: false, error: 'Payment amount mismatch' });
     }
-    if (success === false) {
-      updateById('payments', payment.id, {
-        status: 'failed',
-        failedAt: new Date().toISOString(),
-      });
-      return res.json({ success: true, data: { message: 'Payment marked as failed' } });
+
+    if (process.env.NODE_ENV === 'production' && process.env.RAZORPAY_SECRET) {
+      const crypto = require('crypto');
+      const generated = crypto
+        .createHmac('sha256', process.env.RAZORPAY_SECRET)
+        .update(`${razorpayPaymentId}|${paymentId}`)
+        .digest('hex');
+      if (generated !== razorpaySignature) {
+        updateById('payments', payment.id, { status: 'failed', failedAt: new Date().toISOString() });
+        return res.status(400).json({ success: false, error: 'Payment verification failed' });
+      }
     }
+
     updateById('payments', payment.id, {
       status: 'completed',
       verifiedAt: new Date().toISOString(),
+      gatewayPaymentId: razorpayPaymentId || null,
     });
     updateById('orders', order.id, {
       paymentStatus: 'completed',
@@ -100,36 +107,40 @@ router.post('/process', auth, RATE_LIMITS.payment, (req, res) => {
     const order = findById('orders', orderId);
     if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
     if (order.userId !== req.user.id) return res.status(403).json({ success: false, error: 'Access denied' });
-    const transactionId = `txn_${uuidv4().slice(0, 12)}`;
-    const payment = {
-      id: uuidv4(),
-      orderId: order.id,
-      amount: order.total,
-      method: method || order.paymentMethod,
-      gateway: 'razorpay',
-      status: method === 'cod' ? 'pending' : 'completed',
-      transactionId,
-      createdAt: new Date().toISOString(),
-    };
-    insertOne('payments', payment);
-    if (method !== 'cod') {
-      updateById('orders', order.id, {
-        paymentStatus: 'completed',
-        status: order.status === 'pending' ? 'confirmed' : order.status,
-        updatedAt: new Date().toISOString(),
-      });
+
+    if (method === 'cod') {
+      const transactionId = `txn_${uuidv4().slice(0, 12)}`;
+      const payment = {
+        id: uuidv4(),
+        orderId: order.id,
+        amount: order.total,
+        method: 'cod',
+        gateway: 'cod',
+        status: 'pending',
+        transactionId,
+        createdAt: new Date().toISOString(),
+      };
+      insertOne('payments', payment);
+      res.json({ success: true, data: { payment, message: 'COD order recorded. Payment pending on delivery.' } });
+    } else {
+      const existingPayment = getCollection('payments').find((p) => p.orderId === orderId && p.status === 'processing');
+      if (existingPayment) {
+        return res.json({ success: true, data: { payment: existingPayment, message: 'Pending payment found' } });
+      }
+      const transactionId = `txn_${uuidv4().slice(0, 12)}`;
+      const payment = {
+        id: uuidv4(),
+        orderId: order.id,
+        amount: order.total,
+        method: method || order.paymentMethod,
+        gateway: 'razorpay',
+        status: 'processing',
+        transactionId,
+        createdAt: new Date().toISOString(),
+      };
+      insertOne('payments', payment);
+      res.json({ success: true, data: { payment, message: 'Payment initiated. Use /verify after gateway confirmation.' } });
     }
-    insertOne('notifications', {
-      id: uuidv4(),
-      userId: req.user.id,
-      type: 'payment',
-      title: 'Payment Received',
-      body: `Payment of ₹${order.total} received for order #${order.id.slice(0, 8)}.`,
-      read: false,
-      data: { orderId: order.id, paymentId: payment.id },
-      createdAt: new Date().toISOString(),
-    });
-    res.json({ success: true, data: { payment, message: 'Payment processed successfully' } });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to process payment' });
   }
@@ -139,6 +150,12 @@ router.get('/:id/status', auth, (req, res) => {
   try {
     const payment = findById('payments', req.params.id);
     if (!payment) return res.status(404).json({ success: false, error: 'Payment not found' });
+    if (payment.orderId) {
+      const order = findById('orders', payment.orderId);
+      if (order && order.userId !== req.user.id) {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+      }
+    }
     res.json({ success: true, data: payment });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to get payment status' });

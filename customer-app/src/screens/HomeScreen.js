@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, FlatList,
   RefreshControl, StatusBar, Platform, useWindowDimensions,
@@ -16,7 +16,7 @@ import SearchBar from '../components/SearchBar';
 import { ProductCardSkeleton, CategorySkeleton, BannerSkeleton } from '../components/SkeletonLoader';
 import Toast from '../components/Toast';
 
-const MOCK_BANNERS = [
+const BANNERS = [
   { id: '1', title: 'New Season Collection', subtitle: 'Up to 40% off on luxury brands', buttonText: 'Shop Now', color: COLORS.primary },
   { id: '2', title: 'Premium Watches', subtitle: 'Timeless elegance for every occasion', buttonText: 'Explore', color: COLORS.primary },
   { id: '3', title: 'Exclusive Deals', subtitle: 'Limited time offers on designer picks', buttonText: 'Grab Now', color: COLORS.primary },
@@ -61,7 +61,7 @@ const HomeScreen = ({ navigation }) => {
 
       const shuffled = [...products].sort(() => 0.5 - Math.random());
       setRecommended(shuffled.slice(0, 10));
-      setFlashSaleProducts(products.slice(0, 6));
+      setFlashSaleProducts(products.filter((p) => p.mrp && p.mrp > p.price).slice(0, 6));
     } catch (error) {
       console.error('Error fetching home data:', error);
     } finally {
@@ -72,12 +72,12 @@ const HomeScreen = ({ navigation }) => {
 
   useEffect(() => { fetchData(); }, []);
 
-  const onRefresh = () => {
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchData();
-  };
+  }, [fetchData]);
 
-  const toggleWishlist = async (productId) => {
+  const toggleWishlist = useCallback(async (productId) => {
     if (!isAuthenticated) {
       navigation.navigate('Auth');
       return;
@@ -85,9 +85,9 @@ const HomeScreen = ({ navigation }) => {
     setWishlist((prev) =>
       prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId]
     );
-  };
+  }, [isAuthenticated, navigation]);
 
-  const SectionHeader = ({ title, onSeeAll, accent }) => (
+  const SectionHeader = useCallback(({ title, onSeeAll, accent }) => (
     <View style={styles.sectionHeader}>
       <View style={styles.sectionTitleRow}>
         {accent && <View style={styles.goldAccentLine} />}
@@ -100,9 +100,9 @@ const HomeScreen = ({ navigation }) => {
         </TouchableOpacity>
       )}
     </View>
-  );
+  ), []);
 
-  const renderProductHorizontal = ({ item }) => (
+  const renderProductHorizontal = useCallback(({ item }) => (
     <View style={styles.horizontalProductWrap}>
       <ProductCard
         product={item}
@@ -111,16 +111,23 @@ const HomeScreen = ({ navigation }) => {
         isWishlisted={wishlist.includes(item._id || item.id)}
       />
     </View>
-  );
+  ), [navigation, toggleWishlist, wishlist]);
 
-  const FlashSaleSection = () => (
+  const flashSaleEnd = useMemo(() => {
+    const now = new Date();
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+    return end.toISOString();
+  }, []);
+
+  const FlashSaleSection = useCallback(() => (
     <View style={styles.flashSaleContainer}>
       <View style={styles.flashSaleHeader}>
         <View style={styles.flashSaleTitleRow}>
           <Ionicons name="flash" size={20} color={COLORS.error} />
           <Text style={styles.flashSaleTitle}>Flash Sale</Text>
         </View>
-        <FlashSaleTimer />
+        <FlashSaleTimer endTime={flashSaleEnd} />
       </View>
       <View style={styles.flashSaleBadge}>
         <Text style={styles.flashSaleBadgeText}>ENDS SOON</Text>
@@ -138,7 +145,7 @@ const HomeScreen = ({ navigation }) => {
         />
       )}
     </View>
-  );
+  ), [loading, flashSaleProducts, renderProductHorizontal, flashSaleEnd]);
 
   return (
     <View style={styles.container}>
@@ -153,7 +160,7 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.headerActions}>
             <TouchableOpacity style={styles.headerBtn} onPress={() => {
               if (!isAuthenticated) { navigation.navigate('Auth'); return; }
-              navigation.navigate('Notifications');
+              navigation.navigate('Profile', { screen: 'Notifications' });
             }}>
               <Ionicons name="notifications-outline" size={22} color={COLORS.white} />
             </TouchableOpacity>
@@ -179,7 +186,7 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.section}><BannerSkeleton /></View>
         ) : (
           <View style={styles.section}>
-            <Banner banners={MOCK_BANNERS} onBannerPress={(b) => {
+            <Banner banners={BANNERS} onBannerPress={() => {
               navigation.navigate('ProductList', { sortBy: 'popular' });
             }} />
           </View>

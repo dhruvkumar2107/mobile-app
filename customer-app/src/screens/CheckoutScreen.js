@@ -78,7 +78,7 @@ const CheckoutScreen = ({ navigation }) => {
         couponCode: coupon?.code || couponCode || undefined,
       };
       const res = await ordersAPI.create(orderData);
-      navigation.replace('OrderConfirmation', { orderId: res?.data?._id || res?._id || 'order-id' });
+      navigation.replace('OrderConfirmation', { orderId: res?.data?._id || res?._id || 'order-id', paymentMethod: selectedPayment });
     } catch (error) {
       setToast({ visible: true, message: error.message || 'Failed to place order', type: 'error' });
     } finally {

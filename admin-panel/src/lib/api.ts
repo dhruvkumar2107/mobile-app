@@ -25,7 +25,9 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('admin_token');
-        window.location.href = '/login';
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);
@@ -34,6 +36,7 @@ api.interceptors.response.use(
 
 export const authAPI = {
   login: (data: { email: string; password: string }) => api.post('/auth/login', data),
+  getProfile: () => api.get('/auth/profile'),
 };
 
 export const dashboardAPI = {
@@ -60,8 +63,8 @@ export const customersAPI = {
 };
 
 export const inventoryAPI = {
-  getAll: (params?: Record<string, string | number>) => api.get('/admin/inventory', { params }),
-  updateStock: (id: string, stock: number) => api.put(`/admin/inventory/${id}`, { stock }),
+  getAll: (params?: Record<string, string | number>) => api.get('/inventory', { params }),
+  updateStock: (id: string, stock: number) => api.put(`/inventory/${id}`, { stock }),
 };
 
 export const couponsAPI = {
@@ -87,10 +90,12 @@ export const settingsAPI = {
 };
 
 export const analyticsAPI = {
-  getRevenue: (params?: Record<string, string>) => api.get('/admin/analytics/revenue', { params }),
+  getRevenue: (params?: Record<string, string>) => api.get('/analytics/revenue', { params }),
+  getSales: (params?: Record<string, string>) => api.get('/analytics/sales', { params }),
   getCategories: (params?: Record<string, string>) => api.get('/admin/analytics/categories', { params }),
   getTopProducts: (params?: Record<string, string>) => api.get('/admin/analytics/top-products', { params }),
-  getCustomers: (params?: Record<string, string>) => api.get('/admin/analytics/customers', { params }),
+  getCustomers: (params?: Record<string, string>) => api.get('/analytics/customers', { params }),
+  getProducts: (params?: Record<string, string>) => api.get('/analytics/products', { params }),
   getFunnel: (params?: Record<string, string>) => api.get('/admin/analytics/funnel', { params }),
 };
 

@@ -55,10 +55,17 @@ app.use(helmet({
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || isProduction && allowedOrigins.includes(origin) || !isProduction) {
-      callback(null, true);
+    if (!origin) {
+      return callback(null, true);
+    }
+    if (isProduction) {
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
     } else {
-      callback(new Error('Not allowed by CORS'));
+      callback(null, true);
     }
   },
   credentials: true,
@@ -75,7 +82,7 @@ app.use(requestId);
 app.use(requestLogger);
 app.use(sanitizeBody);
 
-const { trendingSearches } = seed();
+seed();
 console.log('Database seeded successfully');
 
 app.get('/api/health', (req, res) => {

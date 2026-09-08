@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { getCollection } = require('../models/schema');
+const { adminAuth } = require('../middleware/adminAuth');
 
-router.get('/revenue', (req, res) => {
+router.get('/revenue', adminAuth, (req, res) => {
   try {
     const orders = getCollection('orders');
     const totalRevenue = orders.filter((o) => o.paymentStatus === 'completed').reduce((sum, o) => sum + o.total, 0);
@@ -29,7 +30,7 @@ router.get('/revenue', (req, res) => {
   }
 });
 
-router.get('/sales', (req, res) => {
+router.get('/sales', adminAuth, (req, res) => {
   try {
     const orders = getCollection('orders');
     const statusCounts = {};
@@ -57,7 +58,7 @@ router.get('/sales', (req, res) => {
   }
 });
 
-router.get('/customers', (req, res) => {
+router.get('/customers', adminAuth, (req, res) => {
   try {
     const users = getCollection('users').filter((u) => u.role === 'customer');
     const orders = getCollection('orders');
@@ -88,7 +89,7 @@ router.get('/customers', (req, res) => {
   }
 });
 
-router.get('/products', (req, res) => {
+router.get('/products', adminAuth, (req, res) => {
   try {
     const products = getCollection('products').filter((p) => p.isActive);
     const reviews = getCollection('reviews');

@@ -11,6 +11,12 @@ const apiClient = axios.create({
   },
 });
 
+let logoutHandler = null;
+
+export const setLogoutHandler = (handler) => {
+  logoutHandler = handler;
+};
+
 apiClient.interceptors.request.use(
   async (config) => {
     const token = await AsyncStorage.getItem('authToken');
@@ -28,8 +34,12 @@ apiClient.interceptors.response.use(
     if (error.response) {
       const { status, data } = error.response;
       if (status === 401) {
-        AsyncStorage.removeItem('authToken');
-        AsyncStorage.removeItem('user');
+        if (logoutHandler) {
+          logoutHandler();
+        } else {
+          AsyncStorage.removeItem('authToken');
+          AsyncStorage.removeItem('user');
+        }
       }
       return Promise.reject(data || { message: 'Something went wrong' });
     }
@@ -43,6 +53,7 @@ apiClient.interceptors.response.use(
 export const authAPI = {
   login: (credentials) => apiClient.post('/auth/login', credentials),
   register: (data) => apiClient.post('/auth/register', data),
+  logout: () => apiClient.post('/auth/logout'),
   getMe: () => apiClient.get('/auth/me'),
 };
 
@@ -82,14 +93,17 @@ export const wishlistAPI = {
 
 export const ordersAPI = {
   create: (data) => apiClient.post('/orders/create', data),
-  getAll: () => apiClient.get('/orders'),
+  getAll: (params) => apiClient.get('/orders', { params }),
   getById: (id) => apiClient.get(`/orders/${id}`),
   track: (id) => apiClient.get(`/orders/${id}/track`),
+  cancel: (id) => apiClient.post(`/orders/${id}/cancel`),
+  requestReturn: (id, data) => apiClient.post(`/orders/${id}/return`, data),
 };
 
 export const addressesAPI = {
   get: () => apiClient.get('/users/addresses'),
   create: (data) => apiClient.post('/users/addresses', data),
+  update: (id, data) => apiClient.put(`/users/addresses/${id}`, data),
   delete: (id) => apiClient.delete(`/users/addresses/${id}`),
 };
 
@@ -99,8 +113,9 @@ export const couponsAPI = {
 };
 
 export const notificationsAPI = {
-  getAll: () => apiClient.get('/notifications'),
+  getAll: (params) => apiClient.get('/notifications', { params }),
   read: (id) => apiClient.put(`/notifications/${id}/read`),
+  readAll: () => apiClient.put('/notifications/read-all'),
 };
 
 export const variantsAPI = {

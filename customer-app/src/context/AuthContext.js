@@ -1,6 +1,6 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authAPI } from '../api/client';
+import { authAPI, setLogoutHandler } from '../api/client';
 
 const AuthContext = createContext(null);
 
@@ -9,8 +9,23 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(null);
 
+  const logout = useCallback(async () => {
+    try {
+      const storedToken = await AsyncStorage.getItem('authToken');
+      if (storedToken) {
+        try { await authAPI.logout(); } catch (e) {}
+      }
+    } catch (e) {}
+    await AsyncStorage.removeItem('authToken');
+    await AsyncStorage.removeItem('user');
+    setToken(null);
+    setUser(null);
+  }, []);
+
   useEffect(() => {
+    setLogoutHandler(logout);
     loadStoredAuth();
+    return () => setLogoutHandler(null);
   }, []);
 
   const loadStoredAuth = async () => {
@@ -26,7 +41,10 @@ export const AuthProvider = ({ children }) => {
           await AsyncStorage.setItem('user', JSON.stringify(freshUser));
           setUser(freshUser);
         } catch (e) {
-          // Token may be expired, keep stored user for now
+          if (e.error === 'Token has expired' || e.error === 'Invalid token' || e.error === 'Token has been revoked') {
+            await logout();
+            return;
+          }
         }
       }
     } catch (error) {
@@ -62,13 +80,6 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       return { success: false, message: error.message || 'Registration failed' };
     }
-  };
-
-  const logout = async () => {
-    await AsyncStorage.removeItem('authToken');
-    await AsyncStorage.removeItem('user');
-    setToken(null);
-    setUser(null);
   };
 
   return (

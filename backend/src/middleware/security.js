@@ -40,10 +40,10 @@ function requestId(req, res, next) {
 
 function sanitizeString(str) {
   if (typeof str !== 'string') return str;
-  return str.replace(/<[^>]*>/g, '').replace(/[<>"'&]/g, (char) => {
-    const entities = { '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;', '&': '&amp;' };
+  return str.replace(/<[^>]*>/g, '').replace(/[<>"']/g, (char) => {
+    const entities = { '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;' };
     return entities[char] || char;
-  }).trim();
+  }).replace(/&/g, '&amp;').trim();
 }
 
 function sanitizeInput(obj) {
@@ -72,15 +72,6 @@ function requestLogger(req, res, next) {
   const start = Date.now();
   res.on('finish', () => {
     const duration = Date.now() - start;
-    const log = {
-      method: req.method,
-      url: req.originalUrl,
-      status: res.statusCode,
-      duration: `${duration}ms`,
-      ip: req.ip,
-      userAgent: req.get('User-Agent'),
-      requestId: req.id,
-    };
     if (process.env.NODE_ENV === 'development') {
       const color = res.statusCode >= 400 ? '\x1b[31m' : '\x1b[32m';
       console.log(`${color}[${new Date().toISOString()}] ${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms\x1b[0m`);
@@ -95,7 +86,10 @@ const RATE_LIMITS = {
   orderCreate: rateLimit(10, 60000),
   payment: rateLimit(10, 60000),
   review: rateLimit(5, 60000),
+  coupon: rateLimit(10, 60000),
   general: rateLimit(100, 60000),
+  search: rateLimit(30, 60000),
+  wishlist: rateLimit(20, 60000),
 };
 
 module.exports = {

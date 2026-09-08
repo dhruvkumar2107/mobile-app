@@ -50,7 +50,7 @@ const ProductListScreen = ({ route, navigation }) => {
 
   useEffect(() => { fetchProducts(true); }, [categoryId, sortBy, searchQuery]);
 
-  const fetchProducts = async (reset = false) => {
+  const fetchProducts = async (reset = false, overridePage = null) => {
     if (reset) {
       setLoading(true);
       setPage(1);
@@ -58,7 +58,7 @@ const ProductListScreen = ({ route, navigation }) => {
       setLoadingMore(true);
     }
     try {
-      const currentPage = reset ? 1 : page;
+      const currentPage = reset ? 1 : (overridePage || page);
       const sortOption = SORT_OPTIONS.find((o) => o.value === sortBy);
       const apiSort = sortOption?.apiSort || '-rating';
 
@@ -90,12 +90,15 @@ const ProductListScreen = ({ route, navigation }) => {
     }
   };
 
-  const loadMore = () => {
+  const loadMore = useCallback(() => {
     if (!loadingMore && hasMore && !loading) {
-      setPage((prev) => prev + 1);
-      fetchProducts(false);
+      setPage((prev) => {
+        const nextPage = prev + 1;
+        setTimeout(() => fetchProducts(false, nextPage), 0);
+        return nextPage;
+      });
     }
-  };
+  }, [loadingMore, hasMore, loading, sortBy, categoryId, searchQuery]);
 
   const renderProduct = ({ item, index }) => (
     <View style={{ width: productItemWidth, marginBottom: SIZES.sm }}>

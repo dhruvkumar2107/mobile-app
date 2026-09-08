@@ -23,7 +23,14 @@ export function useAuth() {
         setLoading(false);
         return;
       }
-      setUser({ _id: '1', name: 'Admin', email: 'admin@luxe.in', role: 'super_admin' });
+      const response = await authAPI.getProfile();
+      const userData = response.data?.data || response.data;
+      if (userData && (userData.role === 'admin' || userData.role === 'super_admin')) {
+        setUser(userData);
+      } else {
+        localStorage.removeItem('admin_token');
+        setUser(null);
+      }
     } catch {
       localStorage.removeItem('admin_token');
       setUser(null);
@@ -41,13 +48,18 @@ export function useAuth() {
     setError(null);
     try {
       const response = await authAPI.login({ email, password });
-      const { token, user: userData } = response.data;
+      const { token, user: userData } = response.data.data || response.data;
+      if (userData.role !== 'admin' && userData.role !== 'super_admin') {
+        setError('Access denied. Admin account required.');
+        setLoading(false);
+        return false;
+      }
       localStorage.setItem('admin_token', token);
       setUser(userData);
       return true;
     } catch (err: unknown) {
-      const axiosError = err as { response?: { data?: { message?: string } } };
-      setError(axiosError.response?.data?.message || 'Login failed');
+      const axiosError = err as { response?: { data?: { error?: string } } };
+      setError(axiosError.response?.data?.error || 'Login failed');
       return false;
     } finally {
       setLoading(false);

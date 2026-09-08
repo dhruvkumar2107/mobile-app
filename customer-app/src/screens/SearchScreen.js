@@ -1,13 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet,
   StatusBar, Keyboard, ActivityIndicator, Platform, useWindowDimensions,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, SHADOWS } from '../utils/theme';
 import { searchAPI } from '../api/client';
 import ProductCard from '../components/ProductCard';
 import { ProductCardSkeleton } from '../components/SkeletonLoader';
+
+const RECENT_SEARCHES_KEY = '@luxe_recent_searches';
+const MAX_RECENT = 8;
 
 const SearchScreen = ({ navigation }) => {
   const { width } = useWindowDimensions();
@@ -15,7 +19,7 @@ const SearchScreen = ({ navigation }) => {
   const [results, setResults] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [trending, setTrending] = useState([]);
-  const [recentSearches, setRecentSearches] = useState(['Shirts', 'Dresses', 'Sneakers']);
+  const [recentSearches, setRecentSearches] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -23,8 +27,22 @@ const SearchScreen = ({ navigation }) => {
 
   useEffect(() => {
     inputRef.current?.focus();
+    loadRecentSearches();
     fetchTrending();
   }, []);
+
+  const loadRecentSearches = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(RECENT_SEARCHES_KEY);
+      if (stored) setRecentSearches(JSON.parse(stored));
+    } catch (e) {}
+  };
+
+  const saveRecentSearches = async (searches) => {
+    try {
+      await AsyncStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(searches));
+    } catch (e) {}
+  };
 
   const fetchTrending = async () => {
     try {
@@ -57,16 +75,22 @@ const SearchScreen = ({ navigation }) => {
     }
   };
 
+  const addToRecent = useCallback(async (term) => {
+    setRecentSearches((prev) => {
+      const filtered = prev.filter((s) => s.toLowerCase() !== term.toLowerCase());
+      const updated = [term, ...filtered].slice(0, MAX_RECENT);
+      saveRecentSearches(updated);
+      return updated;
+    });
+  }, []);
+
   const search = async (searchQuery) => {
     const q = searchQuery || query;
     if (!q.trim()) return;
     setLoading(true);
     setShowResults(true);
     Keyboard.dismiss();
-    setRecentSearches((prev) => {
-      const filtered = prev.filter((s) => s.toLowerCase() !== q.toLowerCase());
-      return [q, ...filtered].slice(0, 8);
-    });
+    addToRecent(q.trim());
     try {
       const res = await searchAPI.search({ q: q.trim() });
       const data = res?.data || res || {};
@@ -79,7 +103,10 @@ const SearchScreen = ({ navigation }) => {
     }
   };
 
-  const clearRecent = () => setRecentSearches([]);
+  const clearRecent = async () => {
+    setRecentSearches([]);
+    try { await AsyncStorage.removeItem(RECENT_SEARCHES_KEY); } catch (e) {}
+  };
 
   const renderSearchContent = () => {
     if (showResults) {
@@ -97,7 +124,7 @@ const SearchScreen = ({ navigation }) => {
             <View style={styles.emptyContainer}>
               <Ionicons name="search" size={64} color={COLORS.gray300} />
               <Text style={styles.emptyTitle}>No results found</Text>
-              <Text style={styles.emptyMessage}>Try different keywords</Text>
+              <Text style={styles.emptyMessage}>Try different keywords or check spelling</Text>
             </View>
           ) : (
             <View style={styles.resultsGrid}>

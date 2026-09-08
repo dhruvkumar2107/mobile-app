@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, StatusBar,
   ActivityIndicator, Alert, Platform, TextInput, ScrollView, Modal,
@@ -12,9 +12,10 @@ import Toast from '../components/Toast';
 const AddressScreen = ({ navigation }) => {
   const [addresses, setAddresses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingAddress, setEditingAddress] = useState(null);
-  const [form, setForm] = useState({ name: '', phone: '', street: '', city: '', state: '', pincode: '', type: 'home' });
+  const [form, setForm] = useState({ name: '', phone: '', line1: '', city: '', state: '', pincode: '', type: 'home' });
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
 
   useEffect(() => { fetchAddresses(); }, []);
@@ -33,31 +34,45 @@ const AddressScreen = ({ navigation }) => {
 
   const openAddModal = () => {
     setEditingAddress(null);
-    setForm({ name: '', phone: '', street: '', city: '', state: '', pincode: '', type: 'home' });
+    setForm({ name: '', phone: '', line1: '', city: '', state: '', pincode: '', type: 'home' });
     setShowModal(true);
   };
 
   const openEditModal = (addr) => {
     setEditingAddress(addr);
     setForm({
-      name: addr.name || '', phone: addr.phone || '', street: addr.street || addr.address || '',
-      city: addr.city || '', state: addr.state || '', pincode: addr.pincode || addr.zip || '', type: addr.type || 'home',
+      name: addr.name || '',
+      phone: addr.phone || '',
+      line1: addr.line1 || addr.street || addr.address || '',
+      city: addr.city || '',
+      state: addr.state || '',
+      pincode: String(addr.pincode || addr.zip || ''),
+      type: addr.type || 'home',
     });
     setShowModal(true);
   };
 
   const handleSave = async () => {
-    if (!form.name || !form.street || !form.city || !form.state || !form.pincode) {
+    if (!form.name || !form.line1 || !form.city || !form.state || !form.pincode) {
       setToast({ visible: true, message: 'Please fill all required fields', type: 'error' });
       return;
     }
+    setSaving(true);
     try {
-      await addressesAPI.create(form);
+      const payload = { ...form, pincode: String(form.pincode) };
+      if (editingAddress) {
+        await addressesAPI.update(editingAddress._id || editingAddress.id, payload);
+      } else {
+        await addressesAPI.create(payload);
+      }
       setShowModal(false);
+      setEditingAddress(null);
       fetchAddresses();
-      setToast({ visible: true, message: 'Address saved', type: 'success' });
+      setToast({ visible: true, message: editingAddress ? 'Address updated' : 'Address saved', type: 'success' });
     } catch (error) {
       setToast({ visible: true, message: error.message || 'Failed to save address', type: 'error' });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -97,7 +112,7 @@ const AddressScreen = ({ navigation }) => {
         </View>
       </View>
       <Text style={styles.addressName}>{item.name}</Text>
-      <Text style={styles.addressText}>{item.street || item.address}</Text>
+      <Text style={styles.addressText}>{item.line1 || item.street || item.address}</Text>
       <Text style={styles.addressText}>{item.city}, {item.state} - {item.pincode || item.zip}</Text>
       {item.phone && <Text style={styles.addressPhone}>Phone: {item.phone}</Text>}
     </View>
@@ -114,11 +129,11 @@ const AddressScreen = ({ navigation }) => {
             <Text style={styles.inputLabel}>Full Name *</Text>
             <TextInput style={styles.input} value={form.name} onChangeText={(t) => setForm({ ...form, name: t })} placeholder="Name" />
 
-            <Text style={styles.inputLabel}>Phone Number</Text>
-            <TextInput style={styles.input} value={form.phone} onChangeText={(t) => setForm({ ...form, phone: t })} placeholder="Phone" keyboardType="phone-pad" />
+            <Text style={styles.inputLabel}>Phone Number *</Text>
+            <TextInput style={styles.input} value={form.phone} onChangeText={(t) => setForm({ ...form, phone: t })} placeholder="10-digit mobile number" keyboardType="phone-pad" maxLength={10} />
 
             <Text style={styles.inputLabel}>Street Address *</Text>
-            <TextInput style={styles.input} value={form.street} onChangeText={(t) => setForm({ ...form, street: t })} placeholder="Street, Area, Landmark" multiline />
+            <TextInput style={styles.input} value={form.line1} onChangeText={(t) => setForm({ ...form, line1: t })} placeholder="House no., Street, Area, Landmark" multiline numberOfLines={2} />
 
             <Text style={styles.inputLabel}>City *</Text>
             <TextInput style={styles.input} value={form.city} onChangeText={(t) => setForm({ ...form, city: t })} placeholder="City" />
@@ -127,7 +142,7 @@ const AddressScreen = ({ navigation }) => {
             <TextInput style={styles.input} value={form.state} onChangeText={(t) => setForm({ ...form, state: t })} placeholder="State" />
 
             <Text style={styles.inputLabel}>Pincode *</Text>
-            <TextInput style={styles.input} value={form.pincode} onChangeText={(t) => setForm({ ...form, pincode: t })} placeholder="Pincode" keyboardType="number-pad" />
+            <TextInput style={styles.input} value={form.pincode} onChangeText={(t) => setForm({ ...form, pincode: t })} placeholder="6-digit pincode" keyboardType="number-pad" maxLength={6} />
 
             <View style={styles.typeRow}>
               <Text style={styles.inputLabel}>Address Type</Text>
@@ -148,11 +163,15 @@ const AddressScreen = ({ navigation }) => {
             </View>
 
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowModal(false)}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowModal(false); setEditingAddress(null); }}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                <Text style={styles.saveBtnText}>Save Address</Text>
+              <TouchableOpacity style={[styles.saveBtn, saving && styles.saveBtnDisabled]} onPress={handleSave} disabled={saving}>
+                {saving ? (
+                  <ActivityIndicator size="small" color={COLORS.secondary} />
+                ) : (
+                  <Text style={styles.saveBtnText}>{editingAddress ? 'Update' : 'Save'}</Text>
+                )}
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -232,6 +251,7 @@ const styles = StyleSheet.create({
   cancelBtn: { flex: 1, height: 48, borderRadius: SIZES.radius, borderWidth: 1, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center' },
   cancelBtnText: { fontSize: SIZES.font.md, color: COLORS.textSecondary, fontWeight: '600' },
   saveBtn: { flex: 1, height: 48, borderRadius: SIZES.radius, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
+  saveBtnDisabled: { opacity: 0.6 },
   saveBtnText: { fontSize: SIZES.font.md, color: COLORS.secondary, fontWeight: '700' },
 });
 

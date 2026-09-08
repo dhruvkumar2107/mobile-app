@@ -1,11 +1,20 @@
 const jwt = require('jsonwebtoken');
 const { findByField } = require('../models/schema');
 
+let tokenBlacklist = new Set();
+try {
+  const authModule = require('../routes/auth');
+  if (authModule.tokenBlacklist) tokenBlacklist = authModule.tokenBlacklist;
+} catch (e) {}
+
 function auth(req, res, next) {
   try {
     const token = req.headers.authorization?.split(' ')[1] || req.cookies?.token;
     if (!token) {
       return res.status(401).json({ success: false, error: 'Authentication required' });
+    }
+    if (tokenBlacklist.has(token)) {
+      return res.status(401).json({ success: false, error: 'Token has been revoked' });
     }
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     if (!decoded.id || !decoded.role) {
@@ -32,6 +41,7 @@ function optionalAuth(req, res, next) {
   try {
     const token = req.headers.authorization?.split(' ')[1] || req.cookies?.token;
     if (token) {
+      if (tokenBlacklist.has(token)) return next();
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const user = findByField('users', 'id', decoded.id);
       if (user) {
@@ -40,7 +50,6 @@ function optionalAuth(req, res, next) {
     }
   } catch (e) {
     // Token is invalid or expired - continue without authentication
-    // This is expected for optional auth middleware
   }
   next();
 }

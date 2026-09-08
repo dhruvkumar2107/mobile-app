@@ -1,13 +1,14 @@
-import React, { useState, useEffect, createContext } from 'react';
+import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator, StyleSheet, Platform, Dimensions } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { CartProvider } from './src/context/CartContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { COLORS } from './src/utils/theme';
 
 const RootStack = createNativeStackNavigator();
 
@@ -17,7 +18,7 @@ function RootNavigator() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#C9A961" />
+        <ActivityIndicator size="large" color={COLORS.secondary} />
       </View>
     );
   }
@@ -26,8 +27,8 @@ function RootNavigator() {
     <RootStack.Navigator screenOptions={{ headerShown: false }}>
       {!isAuthenticated ? (
         <RootStack.Group>
-          <RootStack.Screen name="Auth" component={AuthStack} />
           <RootStack.Screen name="Main" component={MainApp} />
+          <RootStack.Screen name="Auth" component={AuthStack} />
         </RootStack.Group>
       ) : (
         <RootStack.Group>
@@ -55,10 +56,10 @@ function MainApp() {
   );
 }
 
-const { width: screenWidth } = Dimensions.get('window');
 const MAX_MOBILE_WIDTH = 430;
 
 export default function App() {
+  const { width: screenWidth } = useWindowDimensions();
   const isWeb = Platform.OS === 'web';
   const needsConstraint = isWeb && screenWidth > MAX_MOBILE_WIDTH;
 
@@ -88,7 +89,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: COLORS.background,
   },
   webContainer: {
     flex: 1,
@@ -123,7 +124,7 @@ const styles = StyleSheet.create({
   },
   phoneScreen: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: COLORS.background,
     overflow: 'hidden',
     borderBottomLeftRadius: 36,
     borderBottomRightRadius: 36,

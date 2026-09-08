@@ -4,9 +4,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, SHADOWS } from '../utils/theme';
 
 const OrderConfirmationScreen = ({ route, navigation }) => {
-  const { orderId } = route.params || {};
+  const { orderId, paymentMethod = 'cod' } = route.params || {};
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
+
+  const paymentLabel = {
+    upi: 'UPI Payment',
+    card: 'Credit/Debit Card',
+    netbanking: 'Net Banking',
+    cod: 'Cash on Delivery',
+    wallet: 'Wallet',
+  }[paymentMethod] || 'Cash on Delivery';
 
   useEffect(() => {
     Animated.sequence([
@@ -42,7 +50,7 @@ const OrderConfirmationScreen = ({ route, navigation }) => {
             <View style={styles.divider} />
             <View style={styles.orderRow}>
               <Text style={styles.orderLabel}>Payment</Text>
-              <Text style={styles.orderValue}>Cash on Delivery</Text>
+              <Text style={styles.orderValue}>{paymentLabel}</Text>
             </View>
           </View>
 

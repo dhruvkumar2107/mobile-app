@@ -8,6 +8,8 @@ const { findByField, filterByField, insertOne, findById, getCollection } = requi
 const { auth } = require('../middleware/auth');
 const { RATE_LIMITS } = require('../middleware/security');
 
+const tokenBlacklist = new Set();
+
 router.post('/register', RATE_LIMITS.register, [
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
   body('name').trim().notEmpty().isLength({ max: 100 }).withMessage('Name is required'),
@@ -72,8 +74,16 @@ router.post('/login', RATE_LIMITS.login, [
   }
 });
 
-router.post('/logout', (req, res) => {
-  res.json({ success: true, data: { message: 'Logged out successfully' } });
+router.post('/logout', auth, (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      tokenBlacklist.add(authHeader.slice(7));
+    }
+    res.json({ success: true, data: { message: 'Logged out successfully' } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Logout failed' });
+  }
 });
 
 router.post('/forgot-password', [
@@ -182,3 +192,4 @@ router.get('/profile', auth, (req, res) => {
 });
 
 module.exports = router;
+module.exports.tokenBlacklist = tokenBlacklist;
