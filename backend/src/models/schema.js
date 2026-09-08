@@ -15,6 +15,12 @@ const dataStore = {
   campaigns: [],
   recentlyViewed: [],
   searchHistory: [],
+  variantAttributes: [],
+  variants: [],
+  priceRules: [],
+  auditLogs: [],
+  variantWishlist: [],
+  priceHistory: [],
 };
 
 function getCollection(name) {

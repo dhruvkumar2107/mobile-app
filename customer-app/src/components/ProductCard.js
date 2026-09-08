@@ -52,7 +52,7 @@ const ProductCard = ({ product, onPress, onWishlistPress, isWishlisted, compact 
         {product.rating && (
           <View style={styles.ratingRow}>
             <View style={styles.ratingBadge}>
-              <Text style={styles.ratingText}>{product.rating?.toFixed(1)}</Text>
+              <Text style={styles.ratingText}>{Number(product.rating).toFixed(1)}</Text>
               <Ionicons name="star" size={10} color={COLORS.white} />
             </View>
             {product.numReviews > 0 && (

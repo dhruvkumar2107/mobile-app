@@ -20,6 +20,8 @@ import {
   ChevronRight,
   Crown,
   LogOut,
+  Grid3X3,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -27,6 +29,7 @@ const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/orders', label: 'Orders', icon: ShoppingCart },
   { href: '/products', label: 'Products', icon: Package },
+  { href: '/products', label: 'Variants', icon: Grid3X3 },
   { href: '/customers', label: 'Customers', icon: Users },
   { href: '/inventory', label: 'Inventory', icon: Warehouse },
   { href: '/coupons', label: 'Coupons', icon: Tag },
@@ -35,6 +38,7 @@ const navItems = [
   { href: '/campaigns', label: 'Campaigns', icon: Megaphone },
   { href: '/returns', label: 'Returns', icon: RotateCcw },
   { href: '/notifications', label: 'Notifications', icon: Bell },
+  { href: '/audit', label: 'Audit Log', icon: FileText },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -142,7 +146,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
             const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
             const Icon = item.icon;
             return (
-              <div key={item.href} className="tooltip-wrapper">
+              <div key={item.label} className="tooltip-wrapper">
                 <Link
                   href={item.href}
                   data-nav

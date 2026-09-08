@@ -273,6 +273,57 @@ function seed() {
   ];
   notifications.forEach((n) => insertOne('notifications', n));
 
+  const { v4: uuidv4 } = require('uuid');
+  const variantAttributesData = [
+    { id: 'va1', productId: 'p27', name: 'Storage', type: 'text', values: [{ name: '256GB' }, { name: '512GB' }, { name: '1TB' }] },
+    { id: 'va2', productId: 'p27', name: 'RAM', type: 'text', values: [{ name: '16GB' }, { name: '24GB' }, { name: '32GB' }] },
+    { id: 'va3', productId: 'p27', name: 'Color', type: 'color', values: [{ name: 'Space Black', hex: '#1a1a2e' }, { name: 'Silver', hex: '#c0c0c0' }, { name: 'Midnight Blue', hex: '#191970' }] },
+    { id: 'va4', productId: 'p24', name: 'Color', type: 'color', values: [{ name: 'White', hex: '#f5f5f5' }, { name: 'Black', hex: '#1a1a1a' }, { name: 'Gold', hex: '#C9A961' }] },
+    { id: 'va5', productId: 'p23', name: 'Color', type: 'color', values: [{ name: 'Midnight Black', hex: '#1a1a2e' }, { name: 'Silver', hex: '#c0c0c0' }, { name: 'Deep Navy', hex: '#000080' }] },
+    { id: 'va6', productId: 'p25', name: 'Color', type: 'color', values: [{ name: 'Obsidian Black', hex: '#1a1a2e' }, { name: 'Forest Green', hex: '#228B22' }, { name: 'Golden Sand', hex: '#C9A961' }] },
+    { id: 'va7', productId: 'p26', name: 'Color', type: 'color', values: [{ name: 'Midnight Black', hex: '#1a1a2e' }, { name: 'Ocean Blue', hex: '#1E90FF' }, { name: 'Sunset Red', hex: '#DC143C' }] },
+    { id: 'va8', productId: 'p27', name: 'Processor', type: 'text', values: [{ name: 'M3 Pro' }, { name: 'M3 Max' }] },
+  ];
+  variantAttributesData.forEach((a) => insertOne('variantAttributes', a));
+
+  const laptopVariants = [
+    { id: 'v1', productId: 'p27', sku: 'ELEC-LPT-027-256-16-SPK', attributes: { Storage: '256GB', RAM: '16GB', Color: 'Space Black', Processor: 'M3 Pro' }, priceDelta: 0, stock: 25, availability: 'in_stock', isActive: true, images: [], specifications: { processor: 'M3 Pro', ram: '16GB', storage: '256GB SSD', display: '14.2 inch Liquid Retina XDR' }, createdAt: new Date().toISOString() },
+    { id: 'v2', productId: 'p27', sku: 'ELEC-LPT-027-512-16-SLV', attributes: { Storage: '512GB', RAM: '16GB', Color: 'Silver', Processor: 'M3 Pro' }, priceDelta: 15000, stock: 20, availability: 'in_stock', isActive: true, images: [], specifications: { processor: 'M3 Pro', ram: '16GB', storage: '512GB SSD', display: '14.2 inch Liquid Retina XDR' }, createdAt: new Date().toISOString() },
+    { id: 'v3', productId: 'p27', sku: 'ELEC-LPT-027-512-24-SPK', attributes: { Storage: '512GB', RAM: '24GB', Color: 'Space Black', Processor: 'M3 Pro' }, priceDelta: 25000, stock: 15, availability: 'in_stock', isActive: true, images: [], specifications: { processor: 'M3 Pro', ram: '24GB', storage: '512GB SSD', display: '14.2 inch Liquid Retina XDR' }, createdAt: new Date().toISOString() },
+    { id: 'v4', productId: 'p27', sku: 'ELEC-LPT-027-1TB-32-MAX', attributes: { Storage: '1TB', RAM: '32GB', Color: 'Space Black', Processor: 'M3 Max' }, priceDelta: 65000, stock: 8, availability: 'in_stock', isActive: true, images: [], specifications: { processor: 'M3 Max', ram: '32GB', storage: '1TB SSD', display: '16 inch Liquid Retina XDR' }, createdAt: new Date().toISOString() },
+    { id: 'v5', productId: 'p27', sku: 'ELEC-LPT-027-1TB-32-NAV', attributes: { Storage: '1TB', RAM: '32GB', Color: 'Midnight Blue', Processor: 'M3 Max' }, priceDelta: 68000, stock: 3, availability: 'in_stock', isActive: true, images: [], specifications: { processor: 'M3 Max', ram: '32GB', storage: '1TB SSD', display: '16 inch Liquid Retina XDR' }, createdAt: new Date().toISOString() },
+  ];
+  const earbudsVariants = [
+    { id: 'v6', productId: 'p24', sku: 'ELEC-EAR-024-WHT', attributes: { Color: 'White' }, priceDelta: 0, stock: 45, availability: 'in_stock', isActive: true, images: [], specifications: { driver: '11mm', battery: '8hr + 22hr case', noise_cancel: 'Hybrid ANC' }, createdAt: new Date().toISOString() },
+    { id: 'v7', productId: 'p24', sku: 'ELEC-EAR-024-BLK', attributes: { Color: 'Black' }, priceDelta: 0, stock: 38, availability: 'in_stock', isActive: true, images: [], specifications: { driver: '11mm', battery: '8hr + 22hr case', noise_cancel: 'Hybrid ANC' }, createdAt: new Date().toISOString() },
+    { id: 'v8', productId: 'p24', sku: 'ELEC-EAR-024-GLD', attributes: { Color: 'Gold' }, priceDelta: 500, stock: 0, availability: 'out_of_stock', isActive: true, images: [], specifications: { driver: '11mm', battery: '8hr + 22hr case', noise_cancel: 'Hybrid ANC' }, createdAt: new Date().toISOString() },
+  ];
+  const headphonesVariants = [
+    { id: 'v9', productId: 'p23', sku: 'ELEC-HPH-023-BLK', attributes: { Color: 'Midnight Black' }, priceDelta: 0, stock: 30, availability: 'in_stock', isActive: true, images: [], specifications: { driver: '40mm', battery: '40 hours', anc: 'Active' }, createdAt: new Date().toISOString() },
+    { id: 'v10', productId: 'p23', sku: 'ELEC-HPH-023-SLV', attributes: { Color: 'Silver' }, priceDelta: 0, stock: 22, availability: 'in_stock', isActive: true, images: [], specifications: { driver: '40mm', battery: '40 hours', anc: 'Active' }, createdAt: new Date().toISOString() },
+    { id: 'v11', productId: 'p23', sku: 'ELEC-HPH-023-NVY', attributes: { Color: 'Deep Navy' }, priceDelta: 500, stock: 12, availability: 'in_stock', isActive: true, images: [], specifications: { driver: '40mm', battery: '40 hours', anc: 'Active' }, createdAt: new Date().toISOString() },
+  ];
+  const smartwatchVariants = [
+    { id: 'v12', productId: 'p25', sku: 'ELEC-WTC-025-OBX', attributes: { Color: 'Obsidian Black' }, priceDelta: 0, stock: 18, availability: 'in_stock', isActive: true, images: [], specifications: { display: '1.43 inch AMOLED', battery: '14 days', gps: 'Built-in' }, createdAt: new Date().toISOString() },
+    { id: 'v13', productId: 'p25', sku: 'ELEC-WTC-025-GRN', attributes: { Color: 'Forest Green' }, priceDelta: 0, stock: 10, availability: 'in_stock', isActive: true, images: [], specifications: { display: '1.43 inch AMOLED', battery: '14 days', gps: 'Built-in' }, createdAt: new Date().toISOString() },
+    { id: 'v14', productId: 'p25', sku: 'ELEC-WTC-025-GLD', attributes: { Color: 'Golden Sand' }, priceDelta: 2000, stock: 5, availability: 'in_stock', isActive: true, images: [], specifications: { display: '1.43 inch AMOLED', battery: '14 days', gps: 'Built-in' }, createdAt: new Date().toISOString() },
+  ];
+  const speakerVariants = [
+    { id: 'v15', productId: 'p26', sku: 'ELEC-SPK-026-BLK', attributes: { Color: 'Midnight Black' }, priceDelta: 0, stock: 35, availability: 'in_stock', isActive: true, images: [], specifications: { power: '30W', battery: '20 hours', waterproof: 'IPX7' }, createdAt: new Date().toISOString() },
+    { id: 'v16', productId: 'p26', sku: 'ELEC-SPK-026-BLU', attributes: { Color: 'Ocean Blue' }, priceDelta: 0, stock: 28, availability: 'in_stock', isActive: true, images: [], specifications: { power: '30W', battery: '20 hours', waterproof: 'IPX7' }, createdAt: new Date().toISOString() },
+    { id: 'v17', productId: 'p26', sku: 'ELEC-SPK-026-RED', attributes: { Color: 'Sunset Red' }, priceDelta: 0, stock: 0, availability: 'out_of_stock', isActive: true, images: [], specifications: { power: '30W', battery: '20 hours', waterproof: 'IPX7' }, createdAt: new Date().toISOString() },
+  ];
+  [...laptopVariants, ...earbudsVariants, ...headphonesVariants, ...smartwatchVariants, ...speakerVariants].forEach((v) => {
+    insertOne('variants', v);
+    insertOne('inventory', { id: `inv-${v.id}`, productId: v.productId, variantId: v.id, sku: v.sku, stock: v.stock, reserved: 0, warehouse: 'Mumbai Central Warehouse', lastUpdated: new Date().toISOString() });
+  });
+
+  const priceRules = [
+    { id: 'pr1', productId: 'p27', variantId: null, type: 'percentage', value: 5, name: 'Back to School 5% Off', startDate: '2026-08-01', endDate: '2026-10-31', isActive: true, createdAt: new Date().toISOString() },
+    { id: 'pr2', productId: 'p24', variantId: 'v8', type: 'fixed', value: 200, name: 'Gold Earbuds Clearance ₹200 Off', startDate: '2026-09-01', endDate: '2026-12-31', isActive: true, createdAt: new Date().toISOString() },
+  ];
+  priceRules.forEach((r) => insertOne('priceRules', r));
+
   const trendingSearches = [
     'Wireless earbuds', 'Leather jacket', 'Smartwatch', 'Running shoes', 'Face serum',
     'Laptop', 'Anarkali suit', 'Dining table', 'Perfume', 'Yoga mat',

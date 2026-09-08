@@ -25,7 +25,7 @@ const Rating = ({ rating, count, size = 14, onPress, showText = true }) => {
         {[0, 1, 2, 3, 4].map(renderStar)}
       </View>
       {showText && rating > 0 && (
-        <Text style={[styles.ratingText, { fontSize: size - 2 }]}>{rating.toFixed(1)}</Text>
+        <Text style={[styles.ratingText, { fontSize: size - 2 }]}>{Number(rating).toFixed(1)}</Text>
       )}
       {count !== undefined && (
         <Text style={[styles.countText, { fontSize: size - 3 }]}>({count})</Text>

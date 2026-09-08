@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, useWindowDimensions,
   Image, FlatList, ActivityIndicator, StatusBar, Animated, Share, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, SHADOWS } from '../utils/theme';
-import { productsAPI, wishlistAPI, reviewsAPI } from '../api/client';
+import { productsAPI, wishlistAPI, reviewsAPI, variantsAPI } from '../api/client';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import Price from '../components/Price';
@@ -13,6 +13,383 @@ import Rating from '../components/Rating';
 import ProductCard from '../components/ProductCard';
 import Toast from '../components/Toast';
 import { formatPrice, getDiscountPercent, getImageUrl } from '../utils/helpers';
+
+const VariantSelector = ({ variants, selectedVariant, onSelect, productId, navigation }) => {
+  const [attributes, setAttributes] = useState([]);
+  const [selectedAttributes, setSelectedAttributes] = useState({});
+  const [notifyLoading, setNotifyLoading] = useState(null);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!variants || variants.length === 0) return;
+
+    const attrMap = {};
+    variants.forEach((v) => {
+      if (v.attributes) {
+        Object.entries(v.attributes).forEach(([key, value]) => {
+          if (!attrMap[key]) attrMap[key] = new Set();
+          attrMap[key].add(typeof value === 'object' ? JSON.stringify(value) : String(value));
+        });
+      }
+    });
+
+    const attrs = Object.entries(attrMap).map(([key, values]) => ({
+      name: key,
+      values: Array.from(values).map((v) => {
+        try { return JSON.parse(v); } catch { return v; }
+      }),
+    }));
+    setAttributes(attrs);
+
+    const defaults = {};
+    attrs.forEach((attr) => {
+      if (attr.values.length > 0) defaults[attr.name] = attr.values[0];
+    });
+    setSelectedAttributes(defaults);
+  }, [variants]);
+
+  const findMatchingVariant = useCallback((attrs) => {
+    if (!variants || variants.length === 0) return null;
+    return variants.find((v) => {
+      if (!v.attributes) return false;
+      return Object.entries(attrs).every(([key, value]) => {
+        const vAttr = v.attributes[key];
+        if (vAttr === undefined) return false;
+        const vStr = typeof vAttr === 'object' ? JSON.stringify(vAttr) : String(vAttr);
+        const selStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
+        return vStr === selStr;
+      });
+    });
+  }, [variants]);
+
+  useEffect(() => {
+    const match = findMatchingVariant(selectedAttributes);
+    if (match) {
+      Animated.sequence([
+        Animated.timing(fadeAnim, { toValue: 0.5, duration: 100, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+      ]).start();
+      onSelect(match);
+    }
+  }, [selectedAttributes, variants]);
+
+  const handleAttributeSelect = (attrName, value) => {
+    setSelectedAttributes((prev) => ({ ...prev, [attrName]: value }));
+  };
+
+  const handleNotify = async (variant) => {
+    try {
+      setNotifyLoading(variant._id || variant.id);
+      await variantsAPI.notifyWhenAvailable(variant._id || variant.id);
+      Toast({ visible: true, message: "You'll be notified when available!", type: 'success' });
+    } catch {
+      Toast({ visible: true, message: 'Failed to set notification', type: 'error' });
+    } finally {
+      setNotifyLoading(null);
+    }
+  };
+
+  const currentVariant = findMatchingVariant(selectedAttributes);
+
+  const isColorAttribute = (name) => {
+    const colorNames = ['color', 'colour', 'shade', 'tone'];
+    return colorNames.some((c) => name.toLowerCase().includes(c));
+  };
+
+  const getHexForColor = (value) => {
+    const colorMap = {
+      black: '#000000', white: '#FFFFFF', red: '#DC2626', blue: '#3B82F6',
+      green: '#059669', yellow: '#EAB308', orange: '#F97316', purple: '#8B5CF6',
+      pink: '#EC4899', grey: '#6B7280', gray: '#6B7280', silver: '#C0C0C0',
+      gold: '#C9A961', rose: '#F43F5E', navy: '#1E3A5F', brown: '#92400E',
+      beige: '#D4C5A9', cream: '#FFFDD0', coral: '#FF6F61', teal: '#14B8A6',
+      maroon: '#7F1D1D', navy: '#1E3A5F',
+    };
+    const lower = String(value).toLowerCase();
+    if (lower.startsWith('#')) return lower;
+    return colorMap[lower] || '#9CA3AF';
+  };
+
+  if (!variants || variants.length === 0 || attributes.length === 0) return null;
+
+  const isCurrentVariantAvailable = currentVariant && (currentVariant.stock > 0 || currentVariant.inStock !== false);
+
+  return (
+    <View style={variantStyles.container}>
+      <View style={variantStyles.headerRow}>
+        <Text style={variantStyles.sectionTitle}>Select Variant</Text>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('VariantCompare', {
+            variantIds: variants.slice(0, 3).map((v) => v._id || v.id),
+            productId,
+          })}
+        >
+          <Text style={variantStyles.compareText}>Compare</Text>
+        </TouchableOpacity>
+      </View>
+
+      {attributes.map((attr) => (
+        <View key={attr.name} style={variantStyles.attributeSection}>
+          <Text style={variantStyles.attributeLabel}>
+            {attr.name}: <Text style={variantStyles.attributeSelected}>{String(selectedAttributes[attr.name])}</Text>
+          </Text>
+          <View style={variantStyles.attributeOptions}>
+            {attr.values.map((value, idx) => {
+              const isSelected = String(selectedAttributes[attr.name]) === String(value);
+              const testAttrs = { ...selectedAttributes, [attr.name]: value };
+              const matchingVariant = findMatchingVariant(testAttrs);
+              const isAvailable = matchingVariant && (matchingVariant.stock > 0 || matchingVariant.inStock !== false);
+
+              if (isColorAttribute(attr.name)) {
+                return (
+                  <TouchableOpacity
+                    key={idx}
+                    style={[
+                      variantStyles.colorSwatch,
+                      isSelected && variantStyles.colorSwatchActive,
+                      !isAvailable && variantStyles.colorSwatchUnavailable,
+                    ]}
+                    onPress={() => handleAttributeSelect(attr.name, value)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[variantStyles.colorInner, { backgroundColor: getHexForColor(value) }]} />
+                    {isSelected && <Ionicons name="checkmark" size={12} color={COLORS.white} style={variantStyles.colorCheck} />}
+                    {!isAvailable && <View style={variantStyles.oosOverlay} />}
+                  </TouchableOpacity>
+                );
+              }
+
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  style={[
+                    variantStyles.pillBtn,
+                    isSelected && variantStyles.pillBtnActive,
+                    !isAvailable && variantStyles.pillBtnUnavailable,
+                  ]}
+                  onPress={() => handleAttributeSelect(attr.name, value)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[variantStyles.pillText, isSelected && variantStyles.pillTextActive, !isAvailable && variantStyles.pillTextUnavailable]}>
+                    {String(value)}
+                  </Text>
+                  {!isAvailable && (
+                    <View style={variantStyles.oosBadge}>
+                      <Text style={variantStyles.oosBadgeText}>OOS</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      ))}
+
+      {currentVariant && !isCurrentVariantAvailable && (
+        <View style={variantStyles.unavailableBanner}>
+          <Ionicons name="alert-circle-outline" size={18} color={COLORS.error} />
+          <Text style={variantStyles.unavailableText}>This variant is currently out of stock</Text>
+          <TouchableOpacity
+            style={variantStyles.notifyBtn}
+            onPress={() => handleNotify(currentVariant)}
+            disabled={notifyLoading === (currentVariant._id || currentVariant.id)}
+          >
+            {notifyLoading === (currentVariant._id || currentVariant.id) ? (
+              <ActivityIndicator size="small" color={COLORS.secondary} />
+            ) : (
+              <Text style={variantStyles.notifyBtnText}>Notify Me</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {currentVariant && isCurrentVariantAvailable && (
+        <View style={variantStyles.stockInfo}>
+          <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
+          <Text style={variantStyles.stockText}>In Stock{currentVariant.stock ? ` (${currentVariant.stock} available)` : ''}</Text>
+        </View>
+      )}
+
+      <Animated.View style={{ opacity: fadeAnim }}>
+        {currentVariant && currentVariant.images && currentVariant.images.length > 0 && (
+          <TouchableOpacity
+            style={variantStyles.viewImagesBtn}
+            onPress={() => {
+              if (navigation) {
+                navigation.setParams({ variantImages: currentVariant.images });
+              }
+            }}
+          >
+            <Ionicons name="images-outline" size={16} color={COLORS.secondary} />
+            <Text style={variantStyles.viewImagesText}>View variant images ({currentVariant.images.length})</Text>
+          </TouchableOpacity>
+        )}
+      </Animated.View>
+    </View>
+  );
+};
+
+const variantStyles = StyleSheet.create({
+  container: {
+    paddingVertical: SIZES.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SIZES.md,
+  },
+  sectionTitle: {
+    fontSize: SIZES.font.lg,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+  },
+  compareText: {
+    fontSize: SIZES.font.sm,
+    color: COLORS.secondary,
+    fontWeight: '600',
+  },
+  attributeSection: {
+    marginBottom: SIZES.md,
+  },
+  attributeLabel: {
+    fontSize: SIZES.font.md,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    marginBottom: SIZES.sm,
+  },
+  attributeSelected: {
+    color: COLORS.secondary,
+    fontWeight: '700',
+  },
+  attributeOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SIZES.sm,
+  },
+  colorSwatch: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  colorSwatchActive: {
+    borderColor: COLORS.secondary,
+    borderWidth: 3,
+  },
+  colorSwatchUnavailable: {
+    opacity: 0.5,
+  },
+  colorInner: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+  colorCheck: {
+    position: 'absolute',
+  },
+  oosOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.6)',
+    borderRadius: 18,
+  },
+  pillBtn: {
+    paddingHorizontal: SIZES.lg,
+    paddingVertical: SIZES.sm,
+    borderRadius: SIZES.radiusSm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  pillBtnActive: {
+    borderColor: COLORS.secondary,
+    backgroundColor: COLORS.secondary + '10',
+  },
+  pillBtnUnavailable: {
+    opacity: 0.6,
+  },
+  pillText: {
+    fontSize: SIZES.font.sm,
+    color: COLORS.textPrimary,
+  },
+  pillTextActive: {
+    color: COLORS.secondary,
+    fontWeight: '700',
+  },
+  pillTextUnavailable: {
+    color: COLORS.gray400,
+  },
+  oosBadge: {
+    backgroundColor: COLORS.error + '20',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 3,
+  },
+  oosBadgeText: {
+    fontSize: 8,
+    color: COLORS.error,
+    fontWeight: '700',
+  },
+  unavailableBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.error + '08',
+    padding: SIZES.md,
+    borderRadius: SIZES.radiusSm,
+    gap: SIZES.sm,
+    marginTop: SIZES.sm,
+  },
+  unavailableText: {
+    flex: 1,
+    fontSize: SIZES.font.sm,
+    color: COLORS.error,
+    fontWeight: '500',
+  },
+  notifyBtn: {
+    backgroundColor: COLORS.secondary,
+    paddingHorizontal: SIZES.md,
+    paddingVertical: SIZES.xs + 2,
+    borderRadius: SIZES.radiusSm,
+  },
+  notifyBtnText: {
+    color: COLORS.white,
+    fontSize: SIZES.font.sm,
+    fontWeight: '700',
+  },
+  stockInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: SIZES.sm,
+  },
+  stockText: {
+    fontSize: SIZES.font.sm,
+    color: COLORS.success,
+    fontWeight: '600',
+  },
+  viewImagesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: SIZES.sm,
+  },
+  viewImagesText: {
+    fontSize: SIZES.font.sm,
+    color: COLORS.secondary,
+    fontWeight: '500',
+  },
+});
 
 const ProductDetailScreen = ({ route, navigation }) => {
   const { width } = useWindowDimensions();
@@ -33,15 +410,19 @@ const ProductDetailScreen = ({ route, navigation }) => {
   const { addToCart } = useCart();
   const { isAuthenticated } = useAuth();
 
+  const [variants, setVariants] = useState([]);
+  const [selectedVariant, setSelectedVariant] = useState(null);
+
   useEffect(() => { fetchProduct(); }, [productId]);
 
   const fetchProduct = async () => {
     try {
       setLoading(true);
-      const [prodRes, reviewsRes, relatedRes] = await Promise.allSettled([
+      const [prodRes, reviewsRes, relatedRes, variantsRes] = await Promise.allSettled([
         productsAPI.getById(productId),
         reviewsAPI.getProductReviews(productId),
         productsAPI.getRelated(productId),
+        variantsAPI.getByProduct(productId),
       ]);
       if (prodRes.status === 'fulfilled') {
         const data = prodRes.value?.data || prodRes.value;
@@ -56,6 +437,10 @@ const ProductDetailScreen = ({ route, navigation }) => {
         const relData = relatedRes.value?.data || relatedRes.value || [];
         setRelatedProducts(Array.isArray(relData) ? relData : (relData.items || relData.products || []));
       }
+      if (variantsRes.status === 'fulfilled') {
+        const varData = variantsRes.value?.data || variantsRes.value || [];
+        setVariants(Array.isArray(varData) ? varData : (varData.variants || []));
+      }
     } catch (error) {
       console.error('Error fetching product:', error);
     } finally {
@@ -63,10 +448,59 @@ const ProductDetailScreen = ({ route, navigation }) => {
     }
   };
 
+  const getEffectivePrice = () => {
+    if (selectedVariant) {
+      return selectedVariant.effectivePrice || selectedVariant.price || product?.price || 0;
+    }
+    return product?.price || 0;
+  };
+
+  const getEffectiveMrp = () => {
+    if (selectedVariant) {
+      return selectedVariant.mrp || product?.mrp || 0;
+    }
+    return product?.mrp || 0;
+  };
+
+  const getEffectiveImages = () => {
+    if (selectedVariant && selectedVariant.images && selectedVariant.images.length > 0) {
+      return selectedVariant.images;
+    }
+    return product?.images && product?.images.length > 0 ? product.images : [product?.image];
+  };
+
+  const getEffectiveStock = () => {
+    if (selectedVariant) {
+      return selectedVariant.stock ?? null;
+    }
+    return null;
+  };
+
+  const isCurrentVariantOutOfStock = () => {
+    if (selectedVariant) {
+      return selectedVariant.stock !== undefined && selectedVariant.stock <= 0;
+    }
+    return false;
+  };
+
+  const getEffectiveSpecs = () => {
+    if (selectedVariant && selectedVariant.specifications) {
+      return selectedVariant.specifications;
+    }
+    return product?.specifications;
+  };
+
   const handleAddToCart = async () => {
     if (!isAuthenticated) { navigation.navigate('Auth'); return; }
+    if (isCurrentVariantOutOfStock()) {
+      setToast({ visible: true, message: 'Selected variant is out of stock', type: 'error' });
+      return;
+    }
     setAddingToCart(true);
-    const result = await addToCart(product._id || product.id, quantity);
+    const payload = selectedVariant
+      ? { productId: product._id || product.id, variantId: selectedVariant._id || selectedVariant.id, quantity }
+      : { productId: product._id || product.id, quantity };
+    const result = await addToCart(payload.productId || payload, quantity);
     setAddingToCart(false);
     if (result.success) {
       setToast({ visible: true, message: 'Added to cart', type: 'success' });
@@ -93,8 +527,12 @@ const ProductDetailScreen = ({ route, navigation }) => {
 
   const handleShare = () => {
     Share.share({
-      message: `Check out this product on LUXE: ${product.name} - ${formatPrice(product.price)}`,
+      message: `Check out this product on LUXE: ${product.name} - ${formatPrice(getEffectivePrice())}`,
     });
+  };
+
+  const handleVariantSelect = (variant) => {
+    setSelectedVariant(variant);
   };
 
   if (loading || !product) {
@@ -105,8 +543,11 @@ const ProductDetailScreen = ({ route, navigation }) => {
     );
   }
 
-  const discount = getDiscountPercent(product.mrp, product.price);
-  const images = product.images && product.images.length > 0 ? product.images : [product.image];
+  const effectivePrice = getEffectivePrice();
+  const effectiveMrp = getEffectiveMrp();
+  const images = getEffectiveImages();
+  const discount = getDiscountPercent(effectiveMrp, effectivePrice);
+  const effectiveSpecs = getEffectiveSpecs();
 
   const getStarDistribution = () => {
     const dist = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
@@ -127,13 +568,13 @@ const ProductDetailScreen = ({ route, navigation }) => {
         showsVerticalScrollIndicator={false}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
       >
-        <View style={styles.imageGallery}>
+        <View style={[styles.imageGallery, { width, height: width * 0.9 }]}>
           <FlatList
             horizontal
             pagingEnabled
             data={images}
             renderItem={({ item }) => (
-              <Image source={{ uri: getImageUrl(item) }} style={styles.mainImage} resizeMode="cover" />
+              <Image source={{ uri: getImageUrl(item) }} style={[styles.mainImage, { width, height: width * 0.9 }]} resizeMode="cover" />
             )}
             keyExtractor={(item, index) => `img-${index}`}
             onMomentumScrollEnd={(e) => setSelectedImage(Math.round(e.nativeEvent.contentOffset.x / width))}
@@ -189,15 +630,30 @@ const ProductDetailScreen = ({ route, navigation }) => {
           </View>
 
           <View style={styles.priceSection}>
-            <Price price={product.price} mrp={product.mrp} size="lg" />
+            <Price price={effectivePrice} mrp={effectiveMrp} size="lg" />
             <Text style={styles.inclusiveText}>Inclusive of all taxes</Text>
             {discount > 0 && (
               <View style={styles.savingsRow}>
                 <Ionicons name="pricetag" size={14} color={COLORS.success} />
-                <Text style={styles.savingsText}>You save {formatPrice(product.mrp - product.price)} ({discount}% off)</Text>
+                <Text style={styles.savingsText}>You save {formatPrice(effectiveMrp - effectivePrice)} ({discount}% off)</Text>
+              </View>
+            )}
+            {selectedVariant && selectedVariant.effectivePrice && selectedVariant.effectivePrice !== product.price && (
+              <View style={styles.priceNote}>
+                <Text style={styles.priceNoteText}>Variant price differs from base price ({formatPrice(product.price)})</Text>
               </View>
             )}
           </View>
+
+          {variants.length > 0 && (
+            <VariantSelector
+              variants={variants}
+              selectedVariant={selectedVariant}
+              onSelect={handleVariantSelect}
+              productId={productId}
+              navigation={navigation}
+            />
+          )}
 
           {product.sizes && product.sizes.length > 0 && (
             <View style={styles.variantSection}>
@@ -249,6 +705,16 @@ const ProductDetailScreen = ({ route, navigation }) => {
             </View>
           </View>
 
+          {getEffectiveStock() !== null && getEffectiveStock() !== undefined && (
+            <View style={styles.stockBadgeContainer}>
+              <View style={[styles.stockBadge, getEffectiveStock() > 0 ? styles.stockBadgeIn : styles.stockBadgeOut]}>
+                <Text style={[styles.stockBadgeText, getEffectiveStock() > 0 ? styles.stockBadgeTextIn : styles.stockBadgeTextOut]}>
+                  {getEffectiveStock() > 0 ? `In Stock (${getEffectiveStock()})` : 'Out of Stock'}
+                </Text>
+              </View>
+            </View>
+          )}
+
           <View style={styles.tabs}>
             {['description', 'specifications', 'reviews'].map((tab) => (
               <TouchableOpacity
@@ -271,11 +737,11 @@ const ProductDetailScreen = ({ route, navigation }) => {
 
           {activeTab === 'specifications' && (
             <View style={styles.tabContent}>
-              {product.specifications ? (
-                Object.entries(product.specifications).map(([key, value], index) => (
+              {effectiveSpecs ? (
+                Object.entries(effectiveSpecs).map(([key, value], index) => (
                   <View key={key} style={[styles.specRow, index % 2 === 0 && styles.specRowAlt]}>
                     <Text style={styles.specKey}>{key}</Text>
-                    <Text style={styles.specValue}>{value}</Text>
+                    <Text style={styles.specValue}>{String(value)}</Text>
                   </View>
                 ))
               ) : (
@@ -299,7 +765,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
               {totalReviews > 0 && (
                 <View style={styles.starDistribution}>
                   <View style={styles.avgRatingBlock}>
-                    <Text style={styles.avgRatingNumber}>{(product.rating || 0).toFixed(1)}</Text>
+                    <Text style={styles.avgRatingNumber}>{Number(product.rating || 0).toFixed(1)}</Text>
                     <Rating rating={product.rating || 0} showText={false} size={14} />
                     <Text style={styles.totalReviewsText}>{totalReviews} reviews</Text>
                   </View>
@@ -372,13 +838,15 @@ const ProductDetailScreen = ({ route, navigation }) => {
           <Text style={styles.buyNowText}>BUY NOW</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.addToCartBtn, addingToCart && styles.btnDisabled]}
+          style={[styles.addToCartBtn, (addingToCart || isCurrentVariantOutOfStock()) && styles.btnDisabled]}
           onPress={handleAddToCart}
-          disabled={addingToCart}
+          disabled={addingToCart || isCurrentVariantOutOfStock()}
           activeOpacity={0.8}
         >
           {addingToCart ? (
             <ActivityIndicator color={COLORS.white} size="small" />
+          ) : isCurrentVariantOutOfStock() ? (
+            <Text style={styles.addToCartText}>OUT OF STOCK</Text>
           ) : (
             <Text style={styles.addToCartText}>ADD TO BAG</Text>
           )}
@@ -393,8 +861,8 @@ const ProductDetailScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
-  imageGallery: { width, height: width * 0.9, backgroundColor: COLORS.gray100 },
-  mainImage: { width, height: width * 0.9 },
+  imageGallery: { backgroundColor: COLORS.gray100 },
+  mainImage: {},
   imageIndicator: { flexDirection: 'row', justifyContent: 'center', position: 'absolute', bottom: 16, left: 0, right: 0 },
   indicatorDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(0,0,0,0.3)', marginHorizontal: 3 },
   activeIndicator: { backgroundColor: COLORS.secondary, width: 18 },
@@ -415,6 +883,8 @@ const styles = StyleSheet.create({
   inclusiveText: { fontSize: SIZES.font.xs, color: COLORS.textSecondary, marginTop: 4 },
   savingsRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: SIZES.sm },
   savingsText: { fontSize: SIZES.font.sm, color: COLORS.success, fontWeight: '600' },
+  priceNote: { marginTop: SIZES.sm },
+  priceNoteText: { fontSize: SIZES.font.xs, color: COLORS.textSecondary, fontStyle: 'italic' },
   variantSection: { paddingVertical: SIZES.lg, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   variantLabel: { fontSize: SIZES.font.md, fontWeight: '700', color: COLORS.textPrimary, marginBottom: SIZES.sm },
   variantOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: SIZES.sm },
@@ -428,6 +898,13 @@ const styles = StyleSheet.create({
   quantityControl: { flexDirection: 'row', alignItems: 'center', gap: SIZES.lg, marginTop: SIZES.sm },
   qtyBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center' },
   qtyValue: { fontSize: SIZES.font.lg, fontWeight: '700', color: COLORS.textPrimary },
+  stockBadgeContainer: { paddingVertical: SIZES.sm },
+  stockBadge: { paddingHorizontal: SIZES.md, paddingVertical: SIZES.xs, borderRadius: SIZES.radiusSm, alignSelf: 'flex-start' },
+  stockBadgeIn: { backgroundColor: COLORS.success + '15' },
+  stockBadgeOut: { backgroundColor: COLORS.error + '15' },
+  stockBadgeText: { fontSize: SIZES.font.sm, fontWeight: '600' },
+  stockBadgeTextIn: { color: COLORS.success },
+  stockBadgeTextOut: { color: COLORS.error },
   tabs: { flexDirection: 'row', marginTop: SIZES.lg, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   tab: { flex: 1, paddingVertical: SIZES.md, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
   activeTab: { borderBottomColor: COLORS.secondary },

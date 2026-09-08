@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const http = require('http');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -9,6 +10,7 @@ const cookieParser = require('cookie-parser');
 const { seed } = require('./data/seed');
 const { errorHandler } = require('./middleware/errorHandler');
 const { requestId, sanitizeBody, requestLogger, RATE_LIMITS } = require('./middleware/security');
+const { initWebSocket } = require('./websocket');
 
 const authRoutes = require('./routes/auth');
 const productRoutes = require('./routes/products');
@@ -25,6 +27,7 @@ const searchRoutes = require('./routes/search');
 const notificationRoutes = require('./routes/notifications');
 const inventoryRoutes = require('./routes/inventory');
 const analyticsRoutes = require('./routes/analytics');
+const variantRoutes = require('./routes/variants');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -94,6 +97,7 @@ app.use('/api/search', searchRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/variants', variantRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ success: false, error: 'Route not found' });
@@ -101,10 +105,14 @@ app.use((req, res) => {
 
 app.use(errorHandler);
 
-app.listen(PORT, () => {
+const server = http.createServer(app);
+initWebSocket(server);
+
+server.listen(PORT, () => {
   console.log(`LUXE API Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`Health check: http://localhost:${PORT}/api/health`);
+  console.log(`WebSocket: ws://localhost:${PORT}/ws`);
 });
 
 module.exports = app;

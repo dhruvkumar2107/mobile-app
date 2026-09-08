@@ -94,4 +94,20 @@ export const analyticsAPI = {
   getFunnel: (params?: Record<string, string>) => api.get('/admin/analytics/funnel', { params }),
 };
 
+export const variantsAPI = {
+  getByProduct: (productId: string) => api.get(`/variants/product/${productId}`),
+  getGrid: (productId: string) => api.get(`/variants/product/${productId}/grid`),
+  setAttributes: (productId: string, attributes: any[]) => api.post(`/variants/product/${productId}/attributes`, { attributes }),
+  generateVariants: (productId: string, data?: any) => api.post(`/variants/product/${productId}/generate-variants`, data || {}),
+  update: (id: string, data: any) => api.put(`/variants/${id}`, data),
+  bulkUpdate: (variantIds: string[], updates: any) => api.put('/variants/bulk-update', { variantIds, updates }),
+  compare: (ids: string[]) => api.get(`/variants/compare?ids=${ids.join(',')}`),
+  priceHistory: (productId: string, variantId?: string) => api.get(`/variants/price-history/${productId}${variantId ? `?variantId=${variantId}` : ''}`),
+  notifyWhenAvailable: (id: string) => api.post(`/variants/${id}/notify-when-available`),
+};
+
+export const auditAPI = {
+  getLogs: (params?: any) => api.get('/admin/audit-logs', { params }),
+};
+
 export default api;

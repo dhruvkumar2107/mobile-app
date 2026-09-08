@@ -23,6 +23,7 @@ import AddressScreen from '../screens/AddressScreen';
 import CouponScreen from '../screens/CouponScreen';
 import NotificationScreen from '../screens/NotificationScreen';
 import ReviewScreen from '../screens/ReviewScreen';
+import VariantCompareScreen from '../screens/VariantCompareScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 
@@ -61,6 +62,7 @@ function HomeStack() {
       <Stack.Screen name="OrderConfirmation" component={OrderConfirmationScreen} options={{ headerShown: false }} />
       <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Review" component={ReviewScreen} options={{ title: 'Write Review' }} />
+      <Stack.Screen name="VariantCompare" component={VariantCompareScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

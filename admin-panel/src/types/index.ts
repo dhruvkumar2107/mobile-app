@@ -245,3 +245,63 @@ export interface InventoryItem {
   lastRestocked?: string;
   lastUpdated?: string;
 }
+
+export interface VariantAttribute {
+  id: string;
+  productId: string;
+  name: string;
+  type: 'text' | 'color' | 'size';
+  values: { name: string; hex?: string; image?: string }[];
+}
+
+export interface Variant {
+  id: string;
+  productId: string;
+  sku: string;
+  barcode?: string;
+  attributes: Record<string, string>;
+  priceDelta: number;
+  priceOverride?: number | null;
+  effectivePrice?: number;
+  originalPrice?: number;
+  stock: number;
+  reserved?: number;
+  images: string[];
+  specifications: Record<string, string>;
+  availability: 'in_stock' | 'out_of_stock' | 'coming_soon' | 'discontinued';
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PriceRule {
+  id: string;
+  productId: string;
+  variantId?: string;
+  type: 'percentage' | 'fixed' | 'flash';
+  value: number;
+  name: string;
+  startDate?: string;
+  endDate?: string;
+  isActive: boolean;
+}
+
+export interface AuditLog {
+  id: string;
+  userId: string;
+  action: string;
+  entityType: string;
+  entityId?: string;
+  changes?: any;
+  createdAt: string;
+}
+
+export interface PriceHistory {
+  id: string;
+  productId: string;
+  variantId: string;
+  oldPrice: number;
+  newPrice: number;
+  changedBy: string;
+  createdAt: string;
+}

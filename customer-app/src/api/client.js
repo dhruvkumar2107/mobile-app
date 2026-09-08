@@ -103,4 +103,11 @@ export const notificationsAPI = {
   read: (id) => apiClient.put(`/notifications/${id}/read`),
 };
 
+export const variantsAPI = {
+  getByProduct: (productId) => apiClient.get(`/variants/product/${productId}`),
+  compare: (ids) => apiClient.get(`/variants/compare?ids=${ids.join(',')}`),
+  priceHistory: (productId, variantId) => apiClient.get(`/variants/price-history/${productId}${variantId ? `?variantId=${variantId}` : ''}`),
+  notifyWhenAvailable: (id) => apiClient.post(`/variants/${id}/notify-when-available`),
+};
+
 export default apiClient;
