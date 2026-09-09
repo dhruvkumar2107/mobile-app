@@ -17,9 +17,7 @@ services:
       - key: JWT_EXPIRES_IN
         value: 7d
       - key: FRONTEND_URL
-        syncFromRepo: false
-        value: ""
+        value: "https://customer-mobile-flame.vercel.app"
       - key: ADMIN_URL
-        syncFromRepo: false
-        value: ""
+        value: "https://mobile-app-gilt-ten.vercel.app"
     healthCheckPath: /api/health
