@@ -45,7 +45,7 @@ const mockAuditLogs: AuditLog[] = Array.from({ length: 50 }, (_, i) => ({
   createdAt: new Date(Date.now() - Math.random() * 86400000 * 14).toISOString(),
 }));
 
-const actionColors: Record<string, 'success' | 'warning' | 'error' | 'info' | 'gold'> = {
+const actionColors: Record<string, 'success' | 'warning' | 'error' | 'info' | 'gold' | 'default'> = {
   create: 'success',
   update: 'info',
   delete: 'error',
@@ -194,13 +194,13 @@ export default function AuditPage() {
     link.click();
   };
 
-  const columns: Column<Record<string, unknown>>[] = [
+  const columns: Column<AuditLog>[] = [
     {
       key: 'action',
       label: 'Action',
       render: (item) => (
-        <Badge variant={actionColors[item.action as string] || 'default'} dot>
-          {actionLabels[item.action as string] || item.action}
+        <Badge variant={actionColors[item.action] || 'default'} dot>
+          {actionLabels[item.action] || item.action}
         </Badge>
       ),
     },
@@ -209,31 +209,28 @@ export default function AuditPage() {
       label: 'Entity',
       render: (item) => (
         <div>
-          <p className="text-sm font-medium text-navy">{entityTypeLabels[item.entityType as string] || item.entityType}</p>
-          <p className="text-xs text-text-muted">ID: {(item as unknown as AuditLog).entityId}</p>
+          <p className="text-sm font-medium text-navy">{entityTypeLabels[item.entityType] || item.entityType}</p>
+          <p className="text-xs text-text-muted">ID: {item.entityId}</p>
         </div>
       ),
     },
     {
       key: 'entityName',
       label: 'Details',
-      render: (item) => {
-        const log = item as unknown as AuditLog;
-        return (
-          <div>
-            <p className="text-sm text-navy font-medium">{log.entityName || 'N/A'}</p>
-            {log.details && (
-              <p className="text-xs text-text-muted mt-0.5 max-w-[200px] truncate">{log.details}</p>
-            )}
-          </div>
-        );
-      },
+      render: (item) => (
+        <div>
+          <p className="text-sm text-navy font-medium">{item.entityName || 'N/A'}</p>
+          {item.details && (
+            <p className="text-xs text-text-muted mt-0.5 max-w-[200px] truncate">{item.details}</p>
+          )}
+        </div>
+      ),
     },
     {
       key: 'performedBy',
       label: 'Performed By',
       render: (item) => {
-        const user = (item as unknown as AuditLog).performedBy;
+        const user = item.performedBy;
         const name = typeof user === 'object' ? user?.name : user;
         return <span className="text-sm text-text-secondary">{name || 'System'}</span>;
       },
@@ -242,16 +239,15 @@ export default function AuditPage() {
       key: 'createdAt',
       label: 'Date & Time',
       render: (item) => (
-        <span className="text-sm text-text-secondary whitespace-nowrap">{formatDate(item.createdAt as string)}</span>
+        <span className="text-sm text-text-secondary whitespace-nowrap">{formatDate(item.createdAt)}</span>
       ),
     },
     {
       key: 'changes',
       label: 'Changes',
       render: (item) => {
-        const log = item as unknown as AuditLog;
-        const logId = log._id;
-        const hasChanges = log.changes && Object.keys(log.changes).length > 0;
+        const logId = item._id;
+        const hasChanges = item.changes && Object.keys(item.changes).length > 0;
         if (!hasChanges) return <span className="text-xs text-text-muted">-</span>;
         return (
           <button
@@ -262,7 +258,7 @@ export default function AuditPage() {
             className="inline-flex items-center gap-1 text-xs text-accent hover:text-accent/80 font-medium"
           >
             {expandedRow === logId ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-            {Object.keys(log.changes!).length} field{Object.keys(log.changes!).length !== 1 ? 's' : ''}
+            {Object.keys(item.changes!).length} field{Object.keys(item.changes!).length !== 1 ? 's' : ''}
           </button>
         );
       },
@@ -270,40 +266,9 @@ export default function AuditPage() {
     {
       key: 'ipAddress',
       label: 'IP',
-      render: (item) => <span className="text-xs text-text-muted font-mono">{(item as unknown as AuditLog).ipAddress || '-'}</span>,
+      render: (item) => <span className="text-xs text-text-muted font-mono">{item.ipAddress || '-'}</span>,
     },
   ];
-
-  const expandedRowContent = (item: Record<string, unknown>) => {
-    const log = item as unknown as AuditLog;
-    if (expandedRow !== log._id || !log.changes) return null;
-    const diffItems = formatJsonDiff(log.changes);
-    return (
-      <tr key={`expanded-${log._id}`}>
-        <td colSpan={columns.length} className="px-4 py-3 bg-gray-50/80">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-navy uppercase tracking-wider">Changes</p>
-            <div className="bg-white rounded-lg border border-border p-3">
-              <div className="space-y-2">
-                {diffItems.map((diff) => (
-                  <div key={diff.field} className="flex items-start gap-3 text-sm">
-                    <span className="font-mono font-medium text-navy min-w-[100px]">{diff.field}</span>
-                    <span className="text-error bg-error-bg px-2 py-0.5 rounded text-xs font-mono line-through">
-                      {JSON.stringify(diff.oldValue)}
-                    </span>
-                    <span className="text-text-muted mx-1">&rarr;</span>
-                    <span className="text-success bg-success-bg px-2 py-0.5 rounded text-xs font-mono">
-                      {JSON.stringify(diff.newValue)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </td>
-      </tr>
-    );
-  };
 
   const openDetail = (log: AuditLog) => {
     setSelectedLog(log);
@@ -418,7 +383,7 @@ export default function AuditPage() {
         <div className="space-y-0">
           <DataTable
             columns={columns}
-            data={paginatedLogs as unknown as Record<string, unknown>[]}
+            data={paginatedLogs as unknown as AuditLog[]}
             currentPage={currentPage}
             totalPages={displayTotalPages}
             onPageChange={setCurrentPage}

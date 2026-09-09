@@ -44,7 +44,7 @@ function TableSkeleton({ columns, rows = 5 }: { columns: number; rows?: number }
   );
 }
 
-export default function DataTable<T extends Record<string, unknown>>({
+export default function DataTable<T extends Record<string, any> = Record<string, any>>({
   columns,
   data,
   selectedIds = [],

@@ -68,7 +68,7 @@ export default function SettingsPage() {
   const handleSaveSettings = async () => {
     setSaving(true);
     try {
-      await settingsAPI.update(settings);
+      await settingsAPI.update(settings as unknown as Record<string, unknown>);
       showMessage('success', 'Settings saved successfully!');
     } catch (err) {
       console.error('Failed to save settings:', err);

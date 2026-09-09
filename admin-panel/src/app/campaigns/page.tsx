@@ -153,7 +153,7 @@ export default function CampaignsPage() {
         {/* Campaign Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filteredCampaigns.map((campaign) => (
-            <div key={campaign._id || campaign.id} className="bg-white rounded-xl border border-border p-5 hover:shadow-md transition-all">
+            <div key={campaign._id} className="bg-white rounded-xl border border-border p-5 hover:shadow-md transition-all">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-navy/5 flex items-center justify-center text-navy">
