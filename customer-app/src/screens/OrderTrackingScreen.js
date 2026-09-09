@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, Platform, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, Platform, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, SHADOWS } from '../utils/theme';
 import { ordersAPI } from '../api/client';
@@ -11,6 +11,7 @@ const OrderTrackingScreen = ({ route, navigation }) => {
   const [order, setOrder] = useState(null);
   const [tracking, setTracking] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => { fetchOrder(); }, []);
 
@@ -32,6 +33,32 @@ const OrderTrackingScreen = ({ route, navigation }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCancelOrder = () => {
+    Alert.alert(
+      'Cancel Order',
+      'Are you sure you want to cancel this order? This action cannot be undone.',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            setCancelling(true);
+            try {
+              await ordersAPI.cancel(orderId);
+              Alert.alert('Order Cancelled', 'Your order has been cancelled successfully.');
+              fetchOrder();
+            } catch (error) {
+              Alert.alert('Error', error?.message || 'Failed to cancel order. Please try again.');
+            } finally {
+              setCancelling(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (loading) {
@@ -121,6 +148,26 @@ const OrderTrackingScreen = ({ route, navigation }) => {
         </View>
       )}
 
+      {['pending', 'confirmed'].includes(order.status) && (
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={[styles.cancelBtn, cancelling && styles.cancelBtnDisabled]}
+            onPress={handleCancelOrder}
+            disabled={cancelling}
+            activeOpacity={0.7}
+          >
+            {cancelling ? (
+              <ActivityIndicator size="small" color={COLORS.error} />
+            ) : (
+              <>
+                <Ionicons name="close-circle-outline" size={18} color={COLORS.error} />
+                <Text style={styles.cancelBtnText}>Cancel Order</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Order Items</Text>
         <View style={styles.itemsCard}>
@@ -191,6 +238,19 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: SIZES.sm },
   totalLabel: { fontSize: SIZES.font.lg, fontWeight: '700', color: COLORS.textPrimary },
   totalValue: { fontSize: SIZES.font.lg, fontWeight: '800', color: COLORS.primary },
+  cancelBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SIZES.sm,
+    backgroundColor: COLORS.error + '10',
+    borderWidth: 1,
+    borderColor: COLORS.error + '40',
+    borderRadius: SIZES.radiusMd,
+    paddingVertical: SIZES.md,
+  },
+  cancelBtnDisabled: { opacity: 0.5 },
+  cancelBtnText: { fontSize: SIZES.font.md, fontWeight: '700', color: COLORS.error },
 });
 
 export default OrderTrackingScreen;

@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, SHADOWS } from '../utils/theme';
-import { productsAPI, categoriesAPI } from '../api/client';
+import { productsAPI, categoriesAPI, cmsAPI } from '../api/client';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import Banner from '../components/Banner';
@@ -16,7 +16,7 @@ import SearchBar from '../components/SearchBar';
 import { ProductCardSkeleton, CategorySkeleton, BannerSkeleton } from '../components/SkeletonLoader';
 import Toast from '../components/Toast';
 
-const BANNERS = [
+const FALLBACK_BANNERS = [
   { id: '1', title: 'New Season Collection', subtitle: 'Up to 40% off on luxury brands', buttonText: 'Shop Now', color: COLORS.primary },
   { id: '2', title: 'Premium Watches', subtitle: 'Timeless elegance for every occasion', buttonText: 'Explore', color: COLORS.primary },
   { id: '3', title: 'Exclusive Deals', subtitle: 'Limited time offers on designer picks', buttonText: 'Grab Now', color: COLORS.primary },
@@ -26,6 +26,7 @@ const HomeScreen = ({ navigation }) => {
   const { width } = useWindowDimensions();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [banners, setBanners] = useState(FALLBACK_BANNERS);
   const [categories, setCategories] = useState([]);
   const [bestSellers, setBestSellers] = useState([]);
   const [newArrivals, setNewArrivals] = useState([]);
@@ -39,21 +40,40 @@ const HomeScreen = ({ navigation }) => {
 
   const fetchData = useCallback(async () => {
     try {
-      const [catsRes, bestRes, newRes, allRes] = await Promise.allSettled([
+      const [cmsRes, catsRes, bestRes, newRes, allRes] = await Promise.allSettled([
+        cmsAPI.getHomepage(),
         categoriesAPI.getAll(),
         productsAPI.getAll({ sort: '-rating', limit: 10 }),
         productsAPI.getAll({ sort: '-createdAt', limit: 10 }),
         productsAPI.getAll({ limit: 20 }),
       ]);
 
+      if (cmsRes.status === 'fulfilled') {
+        const cmsData = cmsRes.value?.data || cmsRes.value || {};
+        if (Array.isArray(cmsData.banners) && cmsData.banners.length > 0) {
+          setBanners(cmsData.banners);
+        }
+        if (Array.isArray(cmsData.featuredProducts) && cmsData.featuredProducts.length > 0) {
+          setBestSellers(cmsData.featuredProducts);
+        }
+        if (Array.isArray(cmsData.bestSellers) && cmsData.bestSellers.length > 0) {
+          setBestSellers((prev) => prev.length > 0 ? prev : cmsData.bestSellers);
+        }
+        if (Array.isArray(cmsData.newArrivals) && cmsData.newArrivals.length > 0) {
+          setNewArrivals(cmsData.newArrivals);
+        }
+      }
+
       const catData = catsRes.status === 'fulfilled' ? (catsRes.value?.data || catsRes.value || []) : [];
       setCategories(Array.isArray(catData) ? catData : []);
 
       const bestData = bestRes.status === 'fulfilled' ? (bestRes.value?.data || bestRes.value || []) : [];
-      setBestSellers(Array.isArray(bestData) ? bestData : (bestData.items || bestData.products || []));
+      const parsedBest = Array.isArray(bestData) ? bestData : (bestData.items || bestData.products || []);
+      setBestSellers((prev) => prev.length > 0 ? prev : parsedBest);
 
       const newData = newRes.status === 'fulfilled' ? (newRes.value?.data || newRes.value || []) : [];
-      setNewArrivals(Array.isArray(newData) ? newData : (newData.items || newData.products || []));
+      const parsedNew = Array.isArray(newData) ? newData : (newData.items || newData.products || []);
+      setNewArrivals((prev) => prev.length > 0 ? prev : parsedNew);
 
       const allData = allRes.status === 'fulfilled' ? (allRes.value?.data || allRes.value || []) : [];
       const products = Array.isArray(allData) ? allData : (allData.items || allData.products || []);
@@ -186,7 +206,7 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.section}><BannerSkeleton /></View>
         ) : (
           <View style={styles.section}>
-            <Banner banners={BANNERS} onBannerPress={() => {
+            <Banner banners={banners} onBannerPress={() => {
               navigation.navigate('ProductList', { sortBy: 'popular' });
             }} />
           </View>

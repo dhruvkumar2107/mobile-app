@@ -14,7 +14,7 @@ import { formatPrice, getDiscountPercent, getImageUrl } from '../utils/helpers';
 const CartScreen = ({ navigation }) => {
   const {
     items, loading, fetchCart, updateQuantity, removeItem,
-    getSubtotal, getMRP, getDiscount, getCouponDiscount, getDelivery, getTax, getTotal, totalItems,
+    subtotal: cartSubtotal, mrp: cartMrp, discount: cartDiscount, couponDiscount, delivery, tax, total, totalItems,
   } = useCart();
   const { isAuthenticated } = useAuth();
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
@@ -68,7 +68,7 @@ const CartScreen = ({ navigation }) => {
     );
   }
 
-  const totalSavings = getDiscount() + getCouponDiscount();
+  const totalSavings = cartDiscount + couponDiscount;
 
   return (
     <View style={styles.container}>
@@ -141,27 +141,27 @@ const CartScreen = ({ navigation }) => {
                 <Text style={styles.summaryTitle}>Price Details</Text>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Total MRP</Text>
-                  <Text style={styles.summaryValue}>{formatPrice(getMRP())}</Text>
+                  <Text style={styles.summaryValue}>{formatPrice(cartMrp)}</Text>
                 </View>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Discount</Text>
-                  <Text style={[styles.summaryValue, { color: COLORS.success }]}>-{formatPrice(getDiscount())}</Text>
+                  <Text style={[styles.summaryValue, { color: COLORS.success }]}>-{formatPrice(cartDiscount)}</Text>
                 </View>
-                {getCouponDiscount() > 0 && (
+                {couponDiscount > 0 && (
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Coupon Discount</Text>
-                    <Text style={[styles.summaryValue, { color: COLORS.success }]}>-{formatPrice(getCouponDiscount())}</Text>
+                    <Text style={[styles.summaryValue, { color: COLORS.success }]}>-{formatPrice(couponDiscount)}</Text>
                   </View>
                 )}
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Delivery</Text>
-                  <Text style={[styles.summaryValue, getDelivery() === 0 && { color: COLORS.success }]}>
-                    {getDelivery() === 0 ? 'FREE' : formatPrice(getDelivery())}
+                  <Text style={[styles.summaryValue, delivery === 0 && { color: COLORS.success }]}>
+                    {delivery === 0 ? 'FREE' : formatPrice(delivery)}
                   </Text>
                 </View>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Tax</Text>
-                  <Text style={styles.summaryValue}>{formatPrice(getTax())}</Text>
+                  <Text style={styles.summaryValue}>{formatPrice(tax)}</Text>
                 </View>
                 {totalSavings > 0 && (
                   <View style={styles.savingsBanner}>
@@ -172,7 +172,7 @@ const CartScreen = ({ navigation }) => {
                 <View style={styles.divider} />
                 <View style={styles.summaryRow}>
                   <Text style={styles.totalLabel}>Total Amount</Text>
-                  <Text style={styles.totalValue}>{formatPrice(getTotal())}</Text>
+                  <Text style={styles.totalValue}>{formatPrice(total)}</Text>
                 </View>
               </View>
             </ScrollView>

@@ -118,6 +118,16 @@ export const notificationsAPI = {
   readAll: () => apiClient.put('/notifications/read-all'),
 };
 
+export const cmsAPI = {
+  getBanners: () => apiClient.get('/cms/banners'),
+  getHomepage: () => apiClient.get('/cms/homepage'),
+};
+
+export const recentlyViewedAPI = {
+  track: (productId) => apiClient.post('/recently-viewed', { productId }),
+  get: () => apiClient.get('/recently-viewed'),
+};
+
 export const variantsAPI = {
   getByProduct: (productId) => apiClient.get(`/variants/product/${productId}`),
   compare: (ids) => apiClient.get(`/variants/compare?ids=${ids.join(',')}`),

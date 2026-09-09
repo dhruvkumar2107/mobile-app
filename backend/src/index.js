@@ -10,6 +10,8 @@ const cookieParser = require('cookie-parser');
 const { seed } = require('./data/seed');
 const { errorHandler } = require('./middleware/errorHandler');
 const { requestId, sanitizeBody, requestLogger, RATE_LIMITS } = require('./middleware/security');
+const { auth } = require('./middleware/auth');
+const { adminAuth } = require('./middleware/adminAuth');
 const { initWebSocket } = require('./websocket');
 
 const authRoutes = require('./routes/auth');
@@ -28,6 +30,8 @@ const notificationRoutes = require('./routes/notifications');
 const inventoryRoutes = require('./routes/inventory');
 const analyticsRoutes = require('./routes/analytics');
 const variantRoutes = require('./routes/variants');
+const { cmsRoutes, bannerAdminRoutes } = require('./routes/cms');
+const recentlyViewedRoutes = require('./routes/recentlyViewed');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -105,6 +109,9 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/variants', variantRoutes);
+app.use('/api/cms', cmsRoutes);
+app.use('/api/admin/banners', adminAuth, bannerAdminRoutes);
+app.use('/api/recently-viewed', auth, recentlyViewedRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ success: false, error: 'Route not found' });

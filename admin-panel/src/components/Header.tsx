@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Bell, Moon, Sun, Command, ChevronDown, User, Settings, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -13,6 +13,24 @@ export default function Header({ onCommandPaletteOpen }: HeaderProps) {
   const [darkMode, setDarkMode] = useState(false);
   const [notificationCount] = useState(3);
   const profileRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('darkMode');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const shouldDark = saved !== null ? saved === 'true' : prefersDark;
+
+    setDarkMode(shouldDark);
+    document.documentElement.classList.toggle('dark', shouldDark);
+  }, []);
+
+  const toggleDarkMode = useCallback(() => {
+    setDarkMode((prev) => {
+      const next = !prev;
+      document.documentElement.classList.toggle('dark', next);
+      localStorage.setItem('darkMode', String(next));
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -54,7 +72,7 @@ export default function Header({ onCommandPaletteOpen }: HeaderProps) {
       <div className="flex items-center gap-2">
         {/* Dark mode */}
         <button
-          onClick={() => setDarkMode(!darkMode)}
+          onClick={toggleDarkMode}
           className="p-2 text-text-secondary hover:text-navy hover:bg-gray-100 rounded-lg transition-colors"
           aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
         >

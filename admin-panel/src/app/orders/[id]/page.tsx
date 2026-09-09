@@ -1,11 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import AdminLayout from '@/components/AdminLayout';
 import Badge from '@/components/Badge';
 import Button from '@/components/Button';
 import Modal from '@/components/Modal';
 import Select from '@/components/Select';
+import { ordersAPI } from '@/lib/api';
+import { Order, Customer } from '@/types';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import {
   ArrowLeft,
@@ -16,54 +19,9 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  RotateCcw,
   MessageSquare,
 } from 'lucide-react';
 import Link from 'next/link';
-
-const mockOrder = {
-  _id: '1',
-  orderNumber: 'ORD-28491',
-  customer: {
-    firstName: 'Arjun',
-    lastName: 'Mehta',
-    email: 'arjun.mehta@email.com',
-    phone: '+91 98765 43210',
-  },
-  items: [
-    { name: 'Royal Chronograph Watch', image: '', price: 89500, quantity: 1, total: 89500 },
-    { name: 'Leather Watch Strap', image: '', price: 4500, quantity: 2, total: 9000 },
-    { name: 'Watch Box - Premium', image: '', price: 2500, quantity: 1, total: 2500 },
-  ],
-  subtotal: 101000,
-  discount: 5000,
-  shipping: 0,
-  tax: 18180,
-  total: 114180,
-  currency: 'INR',
-  status: 'shipped',
-  paymentStatus: 'paid',
-  paymentMethod: 'Credit Card (**** 4242)',
-  shippingAddress: {
-    street: '42 MG Road, Koramangala',
-    city: 'Bangalore',
-    state: 'Karnataka',
-    zipCode: '560034',
-    country: 'India',
-  },
-  trackingNumber: 'DTDC1234567890',
-  notes: 'Gift wrap requested',
-  couponCode: 'LUXE5000',
-  createdAt: new Date(Date.now() - 86400000).toISOString(),
-  updatedAt: new Date(Date.now() - 3600000).toISOString(),
-  timeline: [
-    { status: 'Order Placed', time: new Date(Date.now() - 86400000 * 2).toISOString(), done: true },
-    { status: 'Payment Confirmed', time: new Date(Date.now() - 86400000 * 2 + 300000).toISOString(), done: true },
-    { status: 'Processing', time: new Date(Date.now() - 86400000).toISOString(), done: true },
-    { status: 'Shipped', time: new Date(Date.now() - 3600000).toISOString(), done: true },
-    { status: 'Delivered', time: null, done: false },
-  ],
-};
 
 const statusColors: Record<string, 'success' | 'warning' | 'error' | 'info' | 'gold'> = {
   pending: 'warning',
@@ -72,16 +30,114 @@ const statusColors: Record<string, 'success' | 'warning' | 'error' | 'info' | 'g
   shipped: 'info',
   delivered: 'success',
   cancelled: 'error',
+  returned: 'error',
+  refunded: 'error',
+  packed: 'info',
+  out_for_delivery: 'info',
+  return_requested: 'warning',
 };
 
+const statusFlow = ['pending', 'confirmed', 'processing', 'shipped', 'delivered'] as const;
+
+function buildTimeline(order: Order) {
+  const statusIndex = statusFlow.indexOf(order.status as typeof statusFlow[number]);
+  const timeline: { status: string; time: string | null; done: boolean }[] = statusFlow.map((s, i) => ({
+    status: s.charAt(0).toUpperCase() + s.slice(1),
+    time: i <= statusIndex && order.updatedAt ? order.updatedAt : null,
+    done: i <= statusIndex,
+  }));
+  if (order.status === 'cancelled') {
+    timeline.forEach((step, i) => {
+      if (i <= 2) { step.done = true; step.time = order.createdAt; }
+      else { step.done = false; step.time = null; }
+    });
+    timeline.push({ status: 'Cancelled', time: order.updatedAt || null, done: true });
+  }
+  return timeline;
+}
+
+function getCustomerName(customer: Order['customer']): string {
+  if (!customer) return 'N/A';
+  if (typeof customer === 'string') return customer;
+  const c = customer as Customer;
+  if (c.firstName || c.lastName) return `${c.firstName || ''} ${c.lastName || ''}`.trim();
+  if (c.name) return c.name;
+  return c.email || 'N/A';
+}
+
+function getCustomerEmail(customer: Order['customer']): string {
+  if (!customer || typeof customer === 'string') return '';
+  return (customer as Customer).email || '';
+}
+
+function getCustomerPhone(customer: Order['customer']): string {
+  if (!customer || typeof customer === 'string') return '';
+  return (customer as Customer).phone || '';
+}
+
+function getInitials(customer: Order['customer']): string {
+  if (!customer || typeof customer === 'string') return '?';
+  const c = customer as Customer;
+  if (c.firstName || c.lastName) return `${(c.firstName || '')[0] || ''}${(c.lastName || '')[0] || ''}`.toUpperCase();
+  if (c.name) return c.name.charAt(0).toUpperCase();
+  return c.email?.charAt(0)?.toUpperCase() || '?';
+}
+
+const allStatuses = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'confirmed', label: 'Confirmed' },
+  { value: 'processing', label: 'Processing' },
+  { value: 'packed', label: 'Packed' },
+  { value: 'shipped', label: 'Shipped' },
+  { value: 'out_for_delivery', label: 'Out for Delivery' },
+  { value: 'delivered', label: 'Delivered' },
+  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'return_requested', label: 'Return Requested' },
+  { value: 'returned', label: 'Returned' },
+  { value: 'refunded', label: 'Refunded' },
+];
+
 export default function OrderDetailPage() {
+  const params = useParams();
+  const orderId = params.id as string;
+
+  const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showStatusModal, setShowStatusModal] = useState(false);
-  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [newStatus, setNewStatus] = useState('');
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   useEffect(() => {
-    setTimeout(() => setLoading(false), 500);
-  }, []);
+    if (!orderId) return;
+    setLoading(true);
+    ordersAPI
+      .getById(orderId)
+      .then((res) => {
+        const data = res.data?.data || res.data;
+        setOrder(data);
+        setNewStatus(data.status || 'pending');
+        setError(null);
+      })
+      .catch((err) => {
+        setError(err.response?.data?.message || 'Failed to load order');
+      })
+      .finally(() => setLoading(false));
+  }, [orderId]);
+
+  const handleUpdateStatus = async () => {
+    if (!order || newStatus === order.status) return;
+    setUpdatingStatus(true);
+    try {
+      const res = await ordersAPI.updateStatus(order._id, newStatus);
+      const data = res.data?.data || res.data;
+      setOrder((prev) => (prev ? { ...prev, ...data } : data));
+      setShowStatusModal(false);
+    } catch {
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -98,6 +154,22 @@ export default function OrderDetailPage() {
     );
   }
 
+  if (error || !order) {
+    return (
+      <AdminLayout>
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <XCircle size={48} className="text-red-400" />
+          <p className="text-lg font-medium text-navy">{error || 'Order not found'}</p>
+          <Link href="/orders">
+            <Button variant="secondary">Back to Orders</Button>
+          </Link>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  const timeline = buildTimeline(order);
+
   return (
     <AdminLayout>
       <div className="space-y-6 animate-fade-in">
@@ -109,20 +181,17 @@ export default function OrderDetailPage() {
             </Link>
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-navy">{mockOrder.orderNumber}</h1>
-                <Badge variant={statusColors[mockOrder.status]} dot size="md">
-                  {mockOrder.status.charAt(0).toUpperCase() + mockOrder.status.slice(1)}
+                <h1 className="text-2xl font-bold text-navy">{order.orderNumber || order._id}</h1>
+                <Badge variant={statusColors[order.status]} dot size="md">
+                  {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                 </Badge>
               </div>
-              <p className="text-sm text-text-secondary mt-0.5">Placed on {formatDateTime(mockOrder.createdAt)}</p>
+              <p className="text-sm text-text-secondary mt-0.5">Placed on {formatDateTime(order.createdAt)}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="secondary" size="sm" onClick={() => setShowStatusModal(true)}>
               Update Status
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => setShowRefundModal(true)}>
-              <RotateCcw size={15} /> Refund
             </Button>
             <Button variant="danger" size="sm">Cancel Order</Button>
           </div>
@@ -135,13 +204,17 @@ export default function OrderDetailPage() {
             <div className="bg-white rounded-xl border border-border p-5">
               <h3 className="text-sm font-semibold text-navy mb-4 flex items-center gap-2">
                 <Package size={16} className="text-text-muted" />
-                Order Items ({mockOrder.items.length})
+                Order Items ({order.items.length})
               </h3>
               <div className="space-y-3">
-                {mockOrder.items.map((item, index) => (
+                {order.items.map((item, index) => (
                   <div key={index} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                    <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center">
-                      <Package size={20} className="text-text-muted" />
+                    <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
+                      {item.image ? (
+                        <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <Package size={20} className="text-text-muted" />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-navy">{item.name}</p>
@@ -156,25 +229,27 @@ export default function OrderDetailPage() {
               <div className="mt-4 pt-4 border-t border-border space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-text-secondary">Subtotal</span>
-                  <span className="text-navy">{formatCurrency(mockOrder.subtotal)}</span>
+                  <span className="text-navy">{formatCurrency(order.subtotal)}</span>
                 </div>
-                {mockOrder.discount > 0 && (
+                {(order.discount ?? 0) > 0 && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-text-secondary">Discount ({mockOrder.couponCode})</span>
-                    <span className="text-success">-{formatCurrency(mockOrder.discount)}</span>
+                    <span className="text-text-secondary">Discount {order.couponCode ? `(${order.couponCode})` : ''}</span>
+                    <span className="text-success">-{formatCurrency(order.discount!)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm">
                   <span className="text-text-secondary">Shipping</span>
-                  <span className="text-success">Free</span>
+                  <span className="text-navy">{(order.shipping ?? 0) > 0 ? formatCurrency(order.shipping!) : 'Free'}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-text-secondary">Tax (GST 18%)</span>
-                  <span className="text-navy">{formatCurrency(mockOrder.tax)}</span>
-                </div>
+                {(order.tax ?? 0) > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-text-secondary">Tax</span>
+                    <span className="text-navy">{formatCurrency(order.tax!)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-base font-bold pt-2 border-t border-border">
                   <span className="text-navy">Total</span>
-                  <span className="text-gold-dark">{formatCurrency(mockOrder.total)}</span>
+                  <span className="text-gold-dark">{formatCurrency(order.total)}</span>
                 </div>
               </div>
             </div>
@@ -186,9 +261,9 @@ export default function OrderDetailPage() {
                 Order Timeline
               </h3>
               <div className="space-y-0">
-                {mockOrder.timeline.map((step, index) => (
+                {timeline.map((step, index) => (
                   <div key={index} className="flex items-start gap-3 relative pb-4 last:pb-0">
-                    {index < mockOrder.timeline.length - 1 && (
+                    {index < timeline.length - 1 && (
                       <div className={`absolute left-[11px] top-6 w-0.5 h-full ${step.done ? 'bg-success' : 'bg-gray-200'}`} />
                     )}
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 z-10 ${
@@ -213,29 +288,33 @@ export default function OrderDetailPage() {
               <h3 className="text-sm font-semibold text-navy mb-3">Customer</h3>
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-navy to-navy-light flex items-center justify-center text-white text-sm font-semibold">
-                  {mockOrder.customer.firstName.charAt(0)}{mockOrder.customer.lastName.charAt(0)}
+                  {getInitials(order.customer)}
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-navy">{mockOrder.customer.firstName} {mockOrder.customer.lastName}</p>
-                  <p className="text-xs text-text-muted">{mockOrder.customer.email}</p>
+                  <p className="text-sm font-medium text-navy">{getCustomerName(order.customer)}</p>
+                  <p className="text-xs text-text-muted">{getCustomerEmail(order.customer)}</p>
                 </div>
               </div>
-              <p className="text-xs text-text-muted">{mockOrder.customer.phone}</p>
+              {getCustomerPhone(order.customer) && (
+                <p className="text-xs text-text-muted">{getCustomerPhone(order.customer)}</p>
+              )}
             </div>
 
             {/* Shipping Address */}
-            <div className="bg-white rounded-xl border border-border p-5">
-              <h3 className="text-sm font-semibold text-navy mb-3 flex items-center gap-2">
-                <MapPin size={14} className="text-text-muted" />
-                Shipping Address
-              </h3>
-              <p className="text-sm text-text-secondary leading-relaxed">
-                {mockOrder.shippingAddress.street}<br />
-                {mockOrder.shippingAddress.city}, {mockOrder.shippingAddress.state}<br />
-                {mockOrder.shippingAddress.zipCode}<br />
-                {mockOrder.shippingAddress.country}
-              </p>
-            </div>
+            {order.shippingAddress && (
+              <div className="bg-white rounded-xl border border-border p-5">
+                <h3 className="text-sm font-semibold text-navy mb-3 flex items-center gap-2">
+                  <MapPin size={14} className="text-text-muted" />
+                  Shipping Address
+                </h3>
+                <p className="text-sm text-text-secondary leading-relaxed">
+                  {order.shippingAddress.street}<br />
+                  {order.shippingAddress.city}, {order.shippingAddress.state}<br />
+                  {order.shippingAddress.zipCode}<br />
+                  {order.shippingAddress.country}
+                </p>
+              </div>
+            )}
 
             {/* Payment */}
             <div className="bg-white rounded-xl border border-border p-5">
@@ -246,29 +325,29 @@ export default function OrderDetailPage() {
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-text-secondary">Method</span>
-                  <span className="text-navy">{mockOrder.paymentMethod}</span>
+                  <span className="text-navy">{order.paymentMethod || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-text-secondary">Status</span>
-                  <Badge variant="success" dot>{mockOrder.paymentStatus}</Badge>
+                  <Badge variant="success" dot>{order.paymentStatus}</Badge>
                 </div>
-                {mockOrder.trackingNumber && (
+                {order.trackingNumber && (
                   <div className="flex justify-between text-sm">
                     <span className="text-text-secondary">Tracking</span>
-                    <span className="text-accent text-xs font-mono">{mockOrder.trackingNumber}</span>
+                    <span className="text-accent text-xs font-mono">{order.trackingNumber}</span>
                   </div>
                 )}
               </div>
             </div>
 
             {/* Notes */}
-            {mockOrder.notes && (
+            {(order.notes || order.note) && (
               <div className="bg-white rounded-xl border border-border p-5">
                 <h3 className="text-sm font-semibold text-navy mb-3 flex items-center gap-2">
                   <MessageSquare size={14} className="text-text-muted" />
                   Notes
                 </h3>
-                <p className="text-sm text-text-secondary">{mockOrder.notes}</p>
+                <p className="text-sm text-text-secondary">{order.notes || order.note}</p>
               </div>
             )}
           </div>
@@ -279,40 +358,15 @@ export default function OrderDetailPage() {
           <div className="space-y-4">
             <Select
               label="New Status"
-              value={mockOrder.status}
-              onChange={() => {}}
-              options={[
-                { value: 'pending', label: 'Pending' },
-                { value: 'confirmed', label: 'Confirmed' },
-                { value: 'processing', label: 'Processing' },
-                { value: 'shipped', label: 'Shipped' },
-                { value: 'delivered', label: 'Delivered' },
-              ]}
+              value={newStatus}
+              onChange={(e) => setNewStatus(e.target.value)}
+              options={allStatuses}
             />
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setShowStatusModal(false)}>Cancel</Button>
-              <Button variant="primary">Update Status</Button>
-            </div>
-          </div>
-        </Modal>
-
-        {/* Refund Modal */}
-        <Modal isOpen={showRefundModal} onClose={() => setShowRefundModal(false)} title="Process Refund">
-          <div className="space-y-4">
-            <p className="text-sm text-text-secondary">
-              Refund amount: <span className="font-semibold text-navy">{formatCurrency(mockOrder.total)}</span>
-            </p>
-            <div>
-              <label className="block text-sm font-medium text-navy mb-1.5">Reason</label>
-              <textarea
-                className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
-                rows={3}
-                placeholder="Enter refund reason..."
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setShowRefundModal(false)}>Cancel</Button>
-              <Button variant="danger">Process Refund</Button>
+              <Button variant="primary" onClick={handleUpdateStatus} disabled={updatingStatus || newStatus === order.status}>
+                {updatingStatus ? 'Updating...' : 'Update Status'}
+              </Button>
             </div>
           </div>
         </Modal>

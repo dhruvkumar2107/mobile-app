@@ -8,7 +8,8 @@ import DataTable, { Column } from '@/components/DataTable';
 import ActivityFeed from '@/components/ActivityFeed';
 import Badge from '@/components/Badge';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { dashboardAPI, ordersAPI } from '@/lib/api';
+import { dashboardAPI, ordersAPI, analyticsAPI } from '@/lib/api';
+import type { ActivityItem } from '@/types';
 import {
   DollarSign,
   ShoppingCart,
@@ -20,85 +21,6 @@ import {
   Clock,
   AlertTriangle,
 } from 'lucide-react';
-
-const mockRevenueData = [
-  { date: '01', revenue: 45000 },
-  { date: '02', revenue: 52000 },
-  { date: '03', revenue: 48000 },
-  { date: '04', revenue: 61000 },
-  { date: '05', revenue: 55000 },
-  { date: '06', revenue: 67000 },
-  { date: '07', revenue: 72000 },
-  { date: '08', revenue: 69000 },
-  { date: '09', revenue: 78000 },
-  { date: '10', revenue: 85000 },
-  { date: '11', revenue: 82000 },
-  { date: '12', revenue: 91000 },
-  { date: '13', revenue: 88000 },
-  { date: '14', revenue: 95000 },
-  { date: '15', revenue: 92000 },
-  { date: '16', revenue: 98000 },
-  { date: '17', revenue: 105000 },
-  { date: '18', revenue: 102000 },
-  { date: '19', revenue: 110000 },
-  { date: '20', revenue: 115000 },
-  { date: '21', revenue: 108000 },
-  { date: '22', revenue: 118000 },
-  { date: '23', revenue: 125000 },
-  { date: '24', revenue: 120000 },
-  { date: '25', revenue: 132000 },
-  { date: '26', revenue: 128000 },
-  { date: '27', revenue: 135000 },
-  { date: '28', revenue: 140000 },
-  { date: '29', revenue: 138000 },
-  { date: '30', revenue: 145000 },
-];
-
-const mockOrdersData = [
-  { date: 'Mon', orders: 145 },
-  { date: 'Tue', orders: 168 },
-  { date: 'Wed', orders: 152 },
-  { date: 'Thu', orders: 189 },
-  { date: 'Fri', orders: 201 },
-  { date: 'Sat', orders: 234 },
-  { date: 'Sun', orders: 178 },
-];
-
-const mockCategoryData = [
-  { name: 'Watches', value: 35 },
-  { name: 'Jewelry', value: 25 },
-  { name: 'Bags', value: 20 },
-  { name: 'Apparel', value: 12 },
-  { name: 'Accessories', value: 8 },
-];
-
-const mockRecentOrders = [
-  { _id: '1', orderNumber: 'ORD-28491', customer: { firstName: 'Arjun', lastName: 'Mehta' } as Record<string, unknown>, items: [{ quantity: 2 } as Record<string, unknown>], total: 45999, status: 'delivered' as const, paymentStatus: 'paid' as const, createdAt: new Date(Date.now() - 3600000).toISOString() },
-  { _id: '2', orderNumber: 'ORD-28490', customer: { firstName: 'Priya', lastName: 'Sharma' } as Record<string, unknown>, items: [{ quantity: 1 } as Record<string, unknown>], total: 89500, status: 'shipped' as const, paymentStatus: 'paid' as const, createdAt: new Date(Date.now() - 7200000).toISOString() },
-  { _id: '3', orderNumber: 'ORD-28489', customer: { firstName: 'Rahul', lastName: 'Gupta' } as Record<string, unknown>, items: [{ quantity: 3 } as Record<string, unknown>], total: 125000, status: 'processing' as const, paymentStatus: 'paid' as const, createdAt: new Date(Date.now() - 10800000).toISOString() },
-  { _id: '4', orderNumber: 'ORD-28488', customer: { firstName: 'Neha', lastName: 'Patel' } as Record<string, unknown>, items: [{ quantity: 1 } as Record<string, unknown>], total: 32500, status: 'pending' as const, paymentStatus: 'pending' as const, createdAt: new Date(Date.now() - 14400000).toISOString() },
-  { _id: '5', orderNumber: 'ORD-28487', customer: { firstName: 'Vikram', lastName: 'Singh' } as Record<string, unknown>, items: [{ quantity: 2 } as Record<string, unknown>], total: 67800, status: 'confirmed' as const, paymentStatus: 'paid' as const, createdAt: new Date(Date.now() - 18000000).toISOString() },
-  { _id: '6', orderNumber: 'ORD-28486', customer: { firstName: 'Ananya', lastName: 'Reddy' } as Record<string, unknown>, items: [{ quantity: 1 } as Record<string, unknown>], total: 245000, status: 'delivered' as const, paymentStatus: 'paid' as const, createdAt: new Date(Date.now() - 21600000).toISOString() },
-  { _id: '7', orderNumber: 'ORD-28485', customer: { firstName: 'Karan', lastName: 'Joshi' } as Record<string, unknown>, items: [{ quantity: 4 } as Record<string, unknown>], total: 18500, status: 'cancelled' as const, paymentStatus: 'refunded' as const, createdAt: new Date(Date.now() - 25200000).toISOString() },
-  { _id: '8', orderNumber: 'ORD-28484', customer: { firstName: 'Meera', lastName: 'Nair' } as Record<string, unknown>, items: [{ quantity: 1 } as Record<string, unknown>], total: 56000, status: 'shipped' as const, paymentStatus: 'paid' as const, createdAt: new Date(Date.now() - 28800000).toISOString() },
-];
-
-const mockLowStockProducts = [
-  { _id: 'ls1', name: 'Royal Chronograph Watch', stock: 3, category: 'Watches' },
-  { _id: 'ls2', name: 'Diamond Pendant Set', stock: 5, category: 'Jewelry' },
-  { _id: 'ls3', name: 'Italian Leather Bag', stock: 7, category: 'Bags' },
-  { _id: 'ls4', name: 'Pearl Earrings', stock: 2, category: 'Jewelry' },
-];
-
-const mockActivity = [
-  { id: '1', type: 'order' as const, message: 'New order #ORD-28491 received from Arjun Mehta', time: new Date(Date.now() - 300000).toISOString(), user: 'Arjun Mehta' },
-  { id: '2', type: 'customer' as const, message: 'New customer Sneha Iyer registered', time: new Date(Date.now() - 600000).toISOString(), user: 'Sneha Iyer' },
-  { id: '3', type: 'order' as const, message: 'Order #ORD-28490 marked as shipped', time: new Date(Date.now() - 900000).toISOString(), user: 'System' },
-  { id: '4', type: 'review' as const, message: 'New 5-star review on Royal Chronograph Watch', time: new Date(Date.now() - 1200000).toISOString(), user: 'Priya Sharma' },
-  { id: '5', type: 'product' as const, message: 'Product "Diamond Pendant Set" stock updated', time: new Date(Date.now() - 1500000).toISOString(), user: 'System' },
-  { id: '6', type: 'order' as const, message: 'Payment of ₹89,500 received for order #ORD-28490', time: new Date(Date.now() - 1800000).toISOString(), user: 'System' },
-  { id: '7', type: 'system' as const, message: 'Daily backup completed successfully', time: new Date(Date.now() - 2100000).toISOString(), user: 'System' },
-];
 
 const statusColors: Record<string, 'success' | 'warning' | 'error' | 'info' | 'gold' | 'default'> = {
   pending: 'warning',
@@ -135,28 +57,34 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentOrders, setRecentOrders] = useState<Record<string, unknown>[]>([]);
-  const [revenueData, setRevenueData] = useState(mockRevenueData);
+  const [revenueData, setRevenueData] = useState<{ date: string; revenue: number }[]>([]);
+  const [ordersData, setOrdersData] = useState<{ date: string; orders: number }[]>([]);
+  const [categoryData, setCategoryData] = useState<{ name: string; value: number }[]>([]);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [dateRange, setDateRange] = useState('30d');
 
   const fetchData = useCallback(async () => {
     try {
-      const [statsRes, ordersRes] = await Promise.allSettled([
+      const [statsRes, ordersRes, revenueRes, salesRes, categoriesRes] = await Promise.allSettled([
         dashboardAPI.getStats(),
         ordersAPI.getAll({ limit: 8, page: 1 }),
+        analyticsAPI.getRevenue({ period: dateRange }),
+        analyticsAPI.getSales({ period: dateRange }),
+        analyticsAPI.getCategories({ period: dateRange }),
       ]);
 
       if (statsRes.status === 'fulfilled') {
         const d = statsRes.value.data;
         const data = d.data || d;
         setStats({
-          totalRevenue: data.totalRevenue || data.totalRevenue === 0 ? data.totalRevenue : 2485420,
-          totalOrders: data.totalOrders || data.totalOrders === 0 ? data.totalOrders : 12482,
-          totalCustomers: data.totalCustomers || data.totalCustomers === 0 ? data.totalCustomers : 48291,
-          totalProducts: data.totalProducts || data.totalProducts === 0 ? data.totalProducts : 18420,
-          conversionRate: data.conversionRate || 4.82,
-          averageOrderValue: data.averageOrderValue || 1984,
-          pendingOrders: 23,
-          lowStockCount: 4,
+          totalRevenue: data.totalRevenue ?? 0,
+          totalOrders: data.totalOrders ?? 0,
+          totalCustomers: data.totalCustomers ?? 0,
+          totalProducts: data.totalProducts ?? 0,
+          conversionRate: data.conversionRate ?? 0,
+          averageOrderValue: data.averageOrderValue ?? 0,
+          pendingOrders: data.pendingOrders ?? 0,
+          lowStockCount: data.lowStockCount ?? 0,
         });
       }
 
@@ -165,6 +93,53 @@ export default function DashboardPage() {
         const orders = d.data || d.orders || d;
         if (Array.isArray(orders) && orders.length > 0) {
           setRecentOrders(orders);
+
+          const feed: ActivityItem[] = orders.slice(0, 7).map((order: any, i: number) => {
+            const name = order.customer?.firstName
+              ? `${order.customer.firstName} ${order.customer.lastName || ''}`.trim()
+              : 'Guest';
+            return {
+              id: order._id || String(i),
+              type: 'order' as const,
+              message: `Order #${order.orderNumber} - ${formatCurrency(order.total)} (${order.status})`,
+              time: order.createdAt,
+              user: name,
+            };
+          });
+          setActivity(feed);
+        }
+      }
+
+      if (revenueRes.status === 'fulfilled') {
+        const d = revenueRes.value.data;
+        const items = d.data || d.revenue || d;
+        if (Array.isArray(items) && items.length > 0) {
+          setRevenueData(items.map((r: any) => ({
+            date: r.date || r._id || r.label,
+            revenue: r.revenue ?? r.total ?? r.value ?? 0,
+          })));
+        }
+      }
+
+      if (salesRes.status === 'fulfilled') {
+        const d = salesRes.value.data;
+        const items = d.data || d.sales || d;
+        if (Array.isArray(items) && items.length > 0) {
+          setOrdersData(items.map((s: any) => ({
+            date: s.date || s._id || s.label,
+            orders: s.orders ?? s.count ?? s.value ?? 0,
+          })));
+        }
+      }
+
+      if (categoriesRes.status === 'fulfilled') {
+        const d = categoriesRes.value.data;
+        const items = d.data || d.categories || d;
+        if (Array.isArray(items) && items.length > 0) {
+          setCategoryData(items.map((c: any) => ({
+            name: c.name || c._id || c.category || 'Unknown',
+            value: c.value ?? c.count ?? c.percentage ?? 0,
+          })));
         }
       }
     } catch (err) {
@@ -172,9 +147,10 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [dateRange]);
 
   useEffect(() => {
+    setLoading(true);
     fetchData();
   }, [fetchData]);
 
@@ -184,18 +160,16 @@ export default function DashboardPage() {
     setRefreshing(false);
   };
 
-  const displayStats = stats || {
-    totalRevenue: 2485420,
-    totalOrders: 12482,
-    totalCustomers: 48291,
-    totalProducts: 18420,
-    conversionRate: 4.82,
-    averageOrderValue: 1984,
-    pendingOrders: 23,
-    lowStockCount: 4,
+  const displayStats: DashboardStats = stats || {
+    totalRevenue: 0,
+    totalOrders: 0,
+    totalCustomers: 0,
+    totalProducts: 0,
+    conversionRate: 0,
+    averageOrderValue: 0,
+    pendingOrders: 0,
+    lowStockCount: 0,
   };
-
-  const displayOrders = recentOrders.length > 0 ? recentOrders : mockRecentOrders;
 
   const orderColumns: Column<Record<string, unknown>>[] = [
     {
@@ -329,7 +303,7 @@ export default function DashboardPage() {
             <RevenueLineChart data={revenueData} />
           </ChartCard>
           <ChartCard title="Category Performance">
-            <CategoryPieChart data={mockCategoryData} />
+            <CategoryPieChart data={categoryData} />
           </ChartCard>
         </div>
 
@@ -340,7 +314,7 @@ export default function DashboardPage() {
             <option>Last Week</option>
           </select>
         }>
-          <OrdersBarChart data={mockOrdersData} />
+          <OrdersBarChart data={ordersData} />
         </ChartCard>
 
         {/* Recent Orders & Activity */}
@@ -349,14 +323,14 @@ export default function DashboardPage() {
             <h2 className="text-sm font-semibold text-navy mb-3">Recent Orders</h2>
             <DataTable
               columns={orderColumns}
-              data={displayOrders}
+              data={recentOrders}
               onRowClick={(item) => window.location.href = `/orders/${item._id}`}
               emptyMessage="No recent orders"
             />
           </div>
           <div className="bg-white rounded-xl border border-border p-5">
             <h2 className="text-sm font-semibold text-navy mb-4">Live Activity</h2>
-            <ActivityFeed activities={mockActivity} />
+            <ActivityFeed activities={activity} />
           </div>
         </div>
       </div>

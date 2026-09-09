@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '@/components/AdminLayout';
 import DataTable, { Column } from '@/components/DataTable';
 import SearchInput from '@/components/SearchInput';
@@ -8,20 +8,9 @@ import Select from '@/components/Select';
 import Badge from '@/components/Badge';
 import Button from '@/components/Button';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Download, MoreVertical } from 'lucide-react';
-
-const mockCustomers = Array.from({ length: 60 }, (_, i) => ({
-  _id: String(i + 1),
-  firstName: ['Arjun', 'Priya', 'Rahul', 'Neha', 'Vikram', 'Ananya', 'Karan', 'Meera', 'Sanjay', 'Divya', 'Amit', 'Pooja'][i % 12],
-  lastName: ['Mehta', 'Sharma', 'Gupta', 'Patel', 'Singh', 'Reddy', 'Joshi', 'Nair', 'Kumar', 'Verma', 'Rao', 'Desai'][i % 12],
-  email: `customer${i + 1}@email.com`,
-  phone: `+91 ${Math.floor(7000000000 + Math.random() * 3000000000)}`,
-  orders: Math.floor(Math.random() * 25) + 1,
-  totalSpent: Math.floor(Math.random() * 500000) + 5000,
-  lastActive: new Date(Date.now() - Math.random() * 86400000 * 30).toISOString(),
-  status: ['active', 'active', 'active', 'inactive', 'blocked'][i % 5] as string,
-  createdAt: new Date(Date.now() - Math.random() * 86400000 * 365).toISOString(),
-}));
+import { customersAPI } from '@/lib/api';
+import { Customer } from '@/types';
+import { Download, RefreshCw, MoreVertical } from 'lucide-react';
 
 const statusColors: Record<string, 'success' | 'warning' | 'error'> = {
   active: 'success',
@@ -29,44 +18,73 @@ const statusColors: Record<string, 'success' | 'warning' | 'error'> = {
   blocked: 'error',
 };
 
+const PAGE_SIZE = 10;
+
 export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const pageSize = 10;
+
+  const fetchCustomers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: Record<string, string | number> = { page: currentPage, limit: PAGE_SIZE };
+      if (search) params.search = search;
+      if (statusFilter) params.status = statusFilter;
+      const res = await customersAPI.getAll(params);
+      const d = res.data;
+      const data = d.data || d.customers || d;
+      if (Array.isArray(data)) {
+        setCustomers(data);
+        setTotalPages(d.totalPages || Math.ceil((d.total || data.length) / PAGE_SIZE));
+        setTotal(d.total || data.length);
+      }
+    } catch {
+      setCustomers([]);
+      setTotalPages(1);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, statusFilter, search]);
 
   useEffect(() => {
-    setTimeout(() => setLoading(false), 600);
-  }, []);
+    fetchCustomers();
+  }, [fetchCustomers]);
 
-  const filteredCustomers = mockCustomers.filter((c) => {
-    const matchSearch = search === '' ||
-      `${c.firstName} ${c.lastName}`.toLowerCase().includes(search.toLowerCase()) ||
-      c.email.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === '' || c.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
+  useEffect(() => {
+    setCurrentPage(1);
+    setSelectedIds([]);
+  }, [statusFilter, search]);
 
-  const totalPages = Math.ceil(filteredCustomers.length / pageSize);
-  const paginatedCustomers = filteredCustomers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const getCustomerName = (c: Customer) => {
+    if (c.firstName || c.lastName) return `${c.firstName || ''} ${c.lastName || ''}`.trim();
+    return c.name || 'Unknown';
+  };
+
+  const getOrderCount = (c: Customer) => c.orders ?? c.orderCount ?? 0;
 
   const columns: Column<Record<string, unknown>>[] = [
     {
       key: 'name',
       label: 'Customer',
       render: (item) => {
-        const firstName = item.firstName as string;
-        const lastName = item.lastName as string;
+        const c = item as unknown as Customer;
+        const name = getCustomerName(c);
+        const initials = name.split(' ').map((w) => w.charAt(0)).join('').slice(0, 2).toUpperCase();
         return (
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-gold to-gold-dark flex items-center justify-center text-navy text-xs font-bold">
-              {firstName.charAt(0)}{lastName.charAt(0)}
+              {initials}
             </div>
             <div>
-              <p className="text-sm font-medium text-navy">{firstName} {lastName}</p>
-              <p className="text-xs text-text-muted">{item.email as string}</p>
+              <p className="text-sm font-medium text-navy">{name}</p>
+              <p className="text-xs text-text-muted">{c.email}</p>
             </div>
           </div>
         );
@@ -75,26 +93,29 @@ export default function CustomersPage() {
     {
       key: 'orders',
       label: 'Orders',
-      render: (item) => <span className="font-medium text-navy">{item.orders as number}</span>,
+      render: (item) => <span className="font-medium text-navy">{getOrderCount(item as unknown as Customer)}</span>,
     },
     {
       key: 'totalSpent',
       label: 'Total Spent',
-      render: (item) => <span className="font-semibold text-navy">{formatCurrency(item.totalSpent as number)}</span>,
+      render: (item) => <span className="font-semibold text-navy">{formatCurrency((item as unknown as Customer).totalSpent ?? 0)}</span>,
     },
     {
       key: 'lastActive',
       label: 'Last Active',
-      render: (item) => <span className="text-text-secondary text-xs">{formatDate(item.lastActive as string)}</span>,
+      render: (item) => <span className="text-text-secondary text-xs">{formatDate((item as unknown as Customer).lastActive || '')}</span>,
     },
     {
       key: 'status',
       label: 'Status',
-      render: (item) => (
-        <Badge variant={statusColors[item.status as string] || 'default'} dot>
-          {(item.status as string).charAt(0).toUpperCase() + (item.status as string).slice(1)}
-        </Badge>
-      ),
+      render: (item) => {
+        const status = (item as unknown as Customer).status || 'active';
+        return (
+          <Badge variant={statusColors[status] || 'default'} dot>
+            {status.charAt(0).toUpperCase() + status.slice(1)}
+          </Badge>
+        );
+      },
     },
     {
       key: 'actions',
@@ -126,10 +147,20 @@ export default function CustomersPage() {
       <div className="space-y-6 animate-fade-in">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-navy">Customers</h1>
+            <h1 className="text-2xl font-bold text-navy">
+              Customers
+              <span className="ml-2 text-sm font-normal text-text-muted">
+                ({total.toLocaleString('en-IN')} total)
+              </span>
+            </h1>
             <p className="text-sm text-text-secondary mt-0.5">Manage your customer base</p>
           </div>
-          <Button variant="secondary" size="sm" icon={<Download size={15} />}>Export</Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" icon={<RefreshCw size={15} />} onClick={fetchCustomers}>
+              Refresh
+            </Button>
+            <Button variant="secondary" size="sm" icon={<Download size={15} />}>Export</Button>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
@@ -151,13 +182,12 @@ export default function CustomersPage() {
           <div className="flex items-center gap-3 p-3 bg-accent/5 border border-accent/20 rounded-lg animate-fade-in">
             <span className="text-sm text-accent font-medium">{selectedIds.length} customer(s) selected</span>
             <Button variant="secondary" size="sm">Send Email</Button>
-            <Button variant="danger" size="sm">Block Selected</Button>
           </div>
         )}
 
         <DataTable
           columns={columns}
-          data={paginatedCustomers}
+          data={customers as unknown as Record<string, unknown>[]}
           selectedIds={selectedIds}
           onSelect={setSelectedIds}
           onRowClick={(item) => window.location.href = `/customers/${item._id}`}
