@@ -32,6 +32,8 @@ const analyticsRoutes = require('./routes/analytics');
 const variantRoutes = require('./routes/variants');
 const { cmsRoutes, bannerAdminRoutes } = require('./routes/cms');
 const recentlyViewedRoutes = require('./routes/recentlyViewed');
+const staffRoutes = require('./routes/staff');
+const invoiceRoutes = require('./routes/invoices');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -111,6 +113,9 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/variants', variantRoutes);
 app.use('/api/cms', cmsRoutes);
 app.use('/api/admin/banners', adminAuth, bannerAdminRoutes);
+app.use('/api/admin/staff', adminAuth, staffRoutes);
+app.use('/api/admin/orders', adminAuth, invoiceRoutes);
+app.use('/api/orders', invoiceRoutes);
 app.use('/api/recently-viewed', auth, recentlyViewedRoutes);
 
 app.use((req, res) => {

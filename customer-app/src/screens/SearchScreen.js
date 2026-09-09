@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet,
-  StatusBar, Keyboard, ActivityIndicator, Platform, useWindowDimensions,
+  StatusBar, Keyboard, ActivityIndicator, Platform, useWindowDimensions, Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -104,8 +104,29 @@ const SearchScreen = ({ navigation }) => {
   };
 
   const clearRecent = async () => {
-    setRecentSearches([]);
-    try { await AsyncStorage.removeItem(RECENT_SEARCHES_KEY); } catch (e) {}
+    Alert.alert(
+      'Clear Search History',
+      'Are you sure you want to clear all recent searches?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: async () => {
+            setRecentSearches([]);
+            try { await AsyncStorage.removeItem(RECENT_SEARCHES_KEY); } catch (e) {}
+          },
+        },
+      ]
+    );
+  };
+
+  const removeRecent = async (term) => {
+    setRecentSearches((prev) => {
+      const updated = prev.filter((s) => s.toLowerCase() !== term.toLowerCase());
+      saveRecentSearches(updated);
+      return updated;
+    });
   };
 
   const renderSearchContent = () => {
@@ -122,9 +143,18 @@ const SearchScreen = ({ navigation }) => {
             <View style={styles.resultsGrid}>{[1, 2, 3, 4].map((i) => <ProductCardSkeleton key={i} />)}</View>
           ) : results.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Ionicons name="search" size={64} color={COLORS.gray300} />
+              <View style={styles.emptyIconWrap}>
+                <Ionicons name="search-outline" size={48} color={COLORS.gray300} />
+              </View>
               <Text style={styles.emptyTitle}>No results found</Text>
-              <Text style={styles.emptyMessage}>Try different keywords or check spelling</Text>
+              <Text style={styles.emptyMessage}>We couldn't find anything matching "{query}"</Text>
+              <Text style={styles.emptyHint}>Try different keywords or check spelling</Text>
+              <TouchableOpacity
+                style={styles.clearSearchBtn}
+                onPress={() => { setQuery(''); setShowResults(false); setResults([]); }}
+              >
+                <Text style={styles.clearSearchBtnText}>Clear Search</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.resultsGrid}>
@@ -144,21 +174,24 @@ const SearchScreen = ({ navigation }) => {
 
     if (suggestions.length > 0 && query.length > 1) {
       return (
-        <View style={styles.suggestionsContainer}>
-          {suggestions.map((item, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.suggestionItem}
-              onPress={() => {
-                const text = typeof item === 'string' ? item : (item.name || item);
-                setQuery(text);
-                search(text);
-              }}
-            >
-              <Ionicons name="search" size={16} color={COLORS.gray400} />
-              <Text style={styles.suggestionText}>{typeof item === 'string' ? item : (item.name || item)}</Text>
-            </TouchableOpacity>
-          ))}
+        <View style={styles.suggestionsDropdown}>
+          {suggestions.map((item, index) => {
+            const text = typeof item === 'string' ? item : (item.name || item);
+            return (
+              <TouchableOpacity
+                key={index}
+                style={[styles.suggestionItem, index === suggestions.length - 1 && styles.suggestionItemLast]}
+                onPress={() => {
+                  setQuery(text);
+                  search(text);
+                }}
+              >
+                <Ionicons name="search" size={16} color={COLORS.gray400} />
+                <Text style={styles.suggestionText}>{text}</Text>
+                <Ionicons name="arrow-forward" size={14} color={COLORS.gray300} />
+              </TouchableOpacity>
+            );
+          })}
         </View>
       );
     }
@@ -170,18 +203,21 @@ const SearchScreen = ({ navigation }) => {
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Recent Searches</Text>
               <TouchableOpacity onPress={clearRecent}>
-                <Text style={styles.clearText}>Clear All</Text>
+                <Ionicons name="trash-outline" size={16} color={COLORS.gray400} />
               </TouchableOpacity>
             </View>
-            <View style={styles.tagsContainer}>
+            <View style={styles.recentList}>
               {recentSearches.map((searchTerm, index) => (
                 <TouchableOpacity
                   key={index}
-                  style={styles.tag}
+                  style={styles.recentItem}
                   onPress={() => { setQuery(searchTerm); search(searchTerm); }}
                 >
-                  <Ionicons name="time-outline" size={14} color={COLORS.gray400} />
-                  <Text style={styles.tagText}>{searchTerm}</Text>
+                  <Ionicons name="time-outline" size={16} color={COLORS.gray400} />
+                  <Text style={styles.recentText}>{searchTerm}</Text>
+                  <TouchableOpacity onPress={() => removeRecent(searchTerm)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="close" size={14} color={COLORS.gray400} />
+                  </TouchableOpacity>
                 </TouchableOpacity>
               ))}
             </View>
@@ -267,6 +303,7 @@ const SearchScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       />
     </View>
   );
@@ -287,17 +324,31 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: SIZES.font.md, color: COLORS.textPrimary, marginLeft: SIZES.sm },
   content: { paddingHorizontal: SIZES.padding, paddingBottom: 100 },
-  suggestionsContainer: { paddingTop: SIZES.sm },
+  suggestionsDropdown: {
+    backgroundColor: COLORS.surface,
+    borderRadius: SIZES.radiusMd,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginTop: SIZES.sm,
+    overflow: 'hidden',
+  },
   suggestionItem: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: SIZES.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: SIZES.sm,
+    paddingHorizontal: SIZES.md, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: SIZES.sm,
   },
+  suggestionItemLast: { borderBottomWidth: 0 },
   suggestionText: { fontSize: SIZES.font.md, color: COLORS.textPrimary, flex: 1 },
   searchContent: { paddingTop: SIZES.lg },
   section: { marginBottom: SIZES.xl },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SIZES.md },
   sectionTitle: { fontSize: SIZES.font.lg, fontWeight: '700', color: COLORS.textPrimary },
   clearText: { fontSize: SIZES.font.sm, color: COLORS.secondary, fontWeight: '600' },
+  recentList: {},
+  recentItem: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: SIZES.md,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: SIZES.sm,
+  },
+  recentText: { fontSize: SIZES.font.md, color: COLORS.textPrimary, flex: 1 },
   tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: SIZES.sm },
   tag: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface,
@@ -324,8 +375,18 @@ const styles = StyleSheet.create({
   resultsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   resultItem: { marginBottom: SIZES.sm },
   emptyContainer: { alignItems: 'center', paddingVertical: 60 },
-  emptyTitle: { fontSize: SIZES.font.lg, fontWeight: '700', color: COLORS.textPrimary, marginTop: SIZES.md },
-  emptyMessage: { fontSize: SIZES.font.md, color: COLORS.textSecondary, marginTop: SIZES.xs },
+  emptyIconWrap: {
+    width: 80, height: 80, borderRadius: 40, backgroundColor: COLORS.gray100,
+    justifyContent: 'center', alignItems: 'center', marginBottom: SIZES.lg,
+  },
+  emptyTitle: { fontSize: SIZES.font.lg, fontWeight: '700', color: COLORS.textPrimary },
+  emptyMessage: { fontSize: SIZES.font.md, color: COLORS.textSecondary, marginTop: SIZES.sm },
+  emptyHint: { fontSize: SIZES.font.sm, color: COLORS.gray400, marginTop: SIZES.xs },
+  clearSearchBtn: {
+    marginTop: SIZES.lg, paddingHorizontal: SIZES.xl, paddingVertical: SIZES.sm,
+    borderRadius: SIZES.radiusFull, borderWidth: 1, borderColor: COLORS.secondary,
+  },
+  clearSearchBtnText: { fontSize: SIZES.font.sm, color: COLORS.secondary, fontWeight: '600' },
 });
 
 export default SearchScreen;

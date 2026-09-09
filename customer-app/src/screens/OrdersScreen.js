@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, StatusBar, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, StatusBar, ActivityIndicator, Platform, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, SHADOWS } from '../utils/theme';
 import { ordersAPI } from '../api/client';
@@ -10,6 +10,7 @@ import { formatDate, formatPrice, getStatusColor } from '../utils/helpers';
 const OrdersScreen = ({ navigation }) => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const { isAuthenticated } = useAuth();
 
   useEffect(() => { if (isAuthenticated) fetchOrders(); }, [isAuthenticated]);
@@ -24,6 +25,12 @@ const OrdersScreen = ({ navigation }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchOrders();
+    setRefreshing(false);
   };
 
   const renderOrder = ({ item }) => {
@@ -106,6 +113,7 @@ const OrdersScreen = ({ navigation }) => {
           keyExtractor={(item) => String(item._id || item.id)}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.secondary]} tintColor={COLORS.secondary} />}
         />
       )}
     </View>

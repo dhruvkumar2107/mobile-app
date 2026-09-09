@@ -21,6 +21,7 @@ const dataStore = {
   auditLogs: [],
   variantWishlist: [],
   priceHistory: [],
+  staff: [],
 };
 
 function getCollection(name) {

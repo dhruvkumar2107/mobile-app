@@ -72,7 +72,30 @@ const styles = StyleSheet.create({
     width: 90,
     marginRight: SIZES.md,
   },
+  detailContainer: {
+    flex: 1,
+  },
+  detailContent: {
+    padding: SIZES.lg,
+  },
 });
 
-export { SkeletonLoader, ProductCardSkeleton, CategorySkeleton, BannerSkeleton };
+const ProductDetailSkeleton = () => {
+  const { width } = useWindowDimensions();
+  return (
+    <View style={styles.detailContainer}>
+      <SkeletonLoader width={width} height={320} borderRadius={0} />
+      <View style={styles.detailContent}>
+        <SkeletonLoader width="70%" height={22} />
+        <SkeletonLoader width="40%" height={18} style={{ marginTop: 10 }} />
+        <SkeletonLoader width="100%" height={12} style={{ marginTop: 16 }} />
+        <SkeletonLoader width="100%" height={12} style={{ marginTop: 6 }} />
+        <SkeletonLoader width="60%" height={12} style={{ marginTop: 6 }} />
+        <SkeletonLoader width="45%" height={40} borderRadius={SIZES.radiusMd} style={{ marginTop: 20 }} />
+      </View>
+    </View>
+  );
+};
+
+export { SkeletonLoader, ProductCardSkeleton, CategorySkeleton, BannerSkeleton, ProductDetailSkeleton };
 export default SkeletonLoader;

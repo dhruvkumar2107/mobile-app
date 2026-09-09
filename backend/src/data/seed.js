@@ -792,6 +792,51 @@ function seed() {
   ];
   banners.forEach((b) => insertOne('banners', b));
 
+  const staff = [
+    {
+      id: 'st1',
+      userId: 'staff-st1',
+      name: 'Riya Kapoor',
+      email: 'riya.kapoor@luxe.in',
+      role: 'ADMIN',
+      permissions: [
+        'manage_products', 'manage_categories', 'manage_variants',
+        'manage_orders', 'view_orders', 'update_order_status',
+        'manage_inventory', 'view_inventory',
+        'manage_customers', 'view_customers',
+        'manage_reviews', 'manage_campaigns', 'manage_coupons', 'manage_banners',
+        'manage_payments', 'manage_refunds',
+        'view_analytics', 'manage_settings', 'manage_notifications',
+      ],
+      isActive: true,
+      createdAt: '2025-06-01T09:00:00.000Z',
+      updatedAt: '2025-06-01T09:00:00.000Z',
+    },
+    {
+      id: 'st2',
+      userId: 'staff-st2',
+      name: 'Arjun Mehta',
+      email: 'arjun.mehta@luxe.in',
+      role: 'ORDER_MANAGER',
+      permissions: ['manage_orders', 'view_orders', 'update_order_status'],
+      isActive: true,
+      createdAt: '2025-07-15T10:30:00.000Z',
+      updatedAt: '2025-07-15T10:30:00.000Z',
+    },
+    {
+      id: 'st3',
+      userId: 'staff-st3',
+      name: 'Sneha Reddy',
+      email: 'sneha.reddy@luxe.in',
+      role: 'CUSTOMER_SUPPORT',
+      permissions: ['manage_orders', 'view_customers', 'manage_reviews'],
+      isActive: true,
+      createdAt: '2025-09-01T11:00:00.000Z',
+      updatedAt: '2025-09-01T11:00:00.000Z',
+    },
+  ];
+  staff.forEach((s) => insertOne('staff', s));
+
   return { trendingSearches };
 }
 

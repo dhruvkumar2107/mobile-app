@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, StatusBar, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, StatusBar, Platform, ActivityIndicator, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, SHADOWS } from '../utils/theme';
 import { wishlistAPI } from '../api/client';
@@ -13,6 +13,7 @@ const WishlistScreen = ({ navigation }) => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
+  const [refreshing, setRefreshing] = useState(false);
   const { isAuthenticated } = useAuth();
   const { fetchCart, addToCart } = useCart();
 
@@ -29,6 +30,12 @@ const WishlistScreen = ({ navigation }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchWishlist();
+    setRefreshing(false);
   };
 
   const removeItem = async (productId) => {
@@ -110,6 +117,7 @@ const WishlistScreen = ({ navigation }) => {
           contentContainerStyle={styles.grid}
           columnWrapperStyle={styles.row}
           showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.secondary]} tintColor={COLORS.secondary} />}
         />
       )}
       <Toast visible={toast.visible} message={toast.message} type={toast.type} onDismiss={() => setToast({ ...toast, visible: false })} />

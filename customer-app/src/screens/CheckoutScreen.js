@@ -31,6 +31,7 @@ const CheckoutScreen = ({ navigation }) => {
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
   const [showAddAddress, setShowAddAddress] = useState(false);
   const [newAddress, setNewAddress] = useState({ name: '', phone: '', street: '', city: '', state: '', pincode: '' });
+  const [orderError, setOrderError] = useState(null);
 
   useEffect(() => { fetchAddresses(); }, []);
 
@@ -65,11 +66,18 @@ const CheckoutScreen = ({ navigation }) => {
     }
   };
 
+  const getDeliveryDate = () => {
+    const date = new Date();
+    date.setDate(date.getDate() + 7);
+    return date.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+  };
+
   const handlePlaceOrder = async () => {
     if (!selectedAddress) {
-      setToast({ visible: true, message: 'Please select an address', type: 'warning' });
+      setToast({ visible: true, message: 'Please select a delivery address', type: 'warning' });
       return;
     }
+    setOrderError(null);
     setPlacing(true);
     try {
       const orderData = {
@@ -78,9 +86,25 @@ const CheckoutScreen = ({ navigation }) => {
         couponCode: coupon?.code || couponCode || undefined,
       };
       const res = await ordersAPI.create(orderData);
-      navigation.replace('OrderConfirmation', { orderId: res?.data?._id || res?._id || 'order-id', paymentMethod: selectedPayment });
+      const orderId = res?.data?._id || res?._id;
+      if (!orderId) {
+        throw new Error('Invalid response from server');
+      }
+      navigation.replace('OrderConfirmation', { orderId, paymentMethod: selectedPayment });
     } catch (error) {
-      setToast({ visible: true, message: error.message || 'Failed to place order', type: 'error' });
+      const msg = error?.message || error?.error || 'Failed to place order';
+      let userMessage = msg;
+      if (msg.toLowerCase().includes('network') || msg.toLowerCase().includes('connection')) {
+        userMessage = 'Network error. Please check your connection and try again.';
+      } else if (msg.toLowerCase().includes('stock') || msg.toLowerCase().includes('unavailable')) {
+        userMessage = 'Some items in your cart are no longer available.';
+      } else if (msg.toLowerCase().includes('payment') || msg.toLowerCase().includes('transaction')) {
+        userMessage = 'Payment processing failed. Please try a different payment method.';
+      } else if (msg.toLowerCase().includes('address')) {
+        userMessage = 'Please check your delivery address.';
+      }
+      setOrderError(userMessage);
+      setToast({ visible: true, message: userMessage, type: 'error' });
     } finally {
       setPlacing(false);
     }
@@ -254,6 +278,17 @@ const CheckoutScreen = ({ navigation }) => {
         })}
       </View>
 
+      <View style={styles.deliveryEstimateCard}>
+        <View style={styles.deliveryEstimateRow}>
+          <Ionicons name="car-outline" size={20} color={COLORS.secondary} />
+          <View style={{ flex: 1, marginLeft: SIZES.sm }}>
+            <Text style={styles.deliveryEstimateLabel}>Estimated Delivery</Text>
+            <Text style={styles.deliveryEstimateDate}>{getDeliveryDate()}</Text>
+          </View>
+          <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
+        </View>
+      </View>
+
       <View style={styles.confirmCard}>
         <View style={styles.priceSummaryRow}>
           <Text style={styles.priceSummaryLabel}>Subtotal</Text>
@@ -286,12 +321,24 @@ const CheckoutScreen = ({ navigation }) => {
         </View>
       </View>
 
+      {orderError && (
+        <View style={styles.errorBanner}>
+          <Ionicons name="alert-circle" size={18} color={COLORS.error} />
+          <Text style={styles.errorBannerText}>{orderError}</Text>
+        </View>
+      )}
+
       <TouchableOpacity
         style={[styles.placeOrderFullBtn, placing && styles.btnDisabled]}
         onPress={handlePlaceOrder}
         disabled={placing}
       >
-        {placing ? <ActivityIndicator color={COLORS.secondary} /> : (
+        {placing ? (
+          <View style={styles.placingRow}>
+            <ActivityIndicator color={COLORS.primary} size="small" />
+            <Text style={styles.placingText}>Placing your order...</Text>
+          </View>
+        ) : (
           <Text style={styles.placeOrderFullText}>PLACE ORDER - {formatPrice(getTotal())}</Text>
         )}
       </TouchableOpacity>
@@ -434,8 +481,20 @@ const styles = StyleSheet.create({
   },
   placeOrderFullText: { color: COLORS.primary, fontSize: SIZES.font.md, fontWeight: '800', letterSpacing: 1 },
   btnDisabled: { opacity: 0.7 },
-  placeOrderText: { color: COLORS.primary, fontSize: SIZES.font.md, fontWeight: '800', letterSpacing: 1 },
-  placeOrderAmount: { color: COLORS.primary, fontSize: SIZES.font.md, fontWeight: '700' },
+  placingRow: { flexDirection: 'row', alignItems: 'center', gap: SIZES.sm },
+  placingText: { color: COLORS.primary, fontSize: SIZES.font.md, fontWeight: '700' },
+  deliveryEstimateCard: {
+    backgroundColor: COLORS.secondary + '10', borderRadius: SIZES.radiusMd,
+    padding: SIZES.md, marginBottom: SIZES.md,
+  },
+  deliveryEstimateRow: { flexDirection: 'row', alignItems: 'center' },
+  deliveryEstimateLabel: { fontSize: SIZES.font.sm, color: COLORS.textSecondary },
+  deliveryEstimateDate: { fontSize: SIZES.font.md, fontWeight: '700', color: COLORS.textPrimary, marginTop: 2 },
+  errorBanner: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.error + '10',
+    padding: SIZES.md, borderRadius: SIZES.radiusSm, marginBottom: SIZES.md, gap: SIZES.sm,
+  },
+  errorBannerText: { flex: 1, fontSize: SIZES.font.sm, color: COLORS.error, fontWeight: '500' },
 });
 
 export default CheckoutScreen;

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '@/components/AdminLayout';
 import DataTable, { Column } from '@/components/DataTable';
 import SearchInput from '@/components/SearchInput';
@@ -9,84 +9,122 @@ import Badge from '@/components/Badge';
 import Button from '@/components/Button';
 import Modal from '@/components/Modal';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { RotateCcw, CheckCircle, XCircle, Eye } from 'lucide-react';
-
-const mockReturns = Array.from({ length: 15 }, (_, i) => ({
-  _id: String(i + 1),
-  orderNumber: `ORD-${28400 + i}`,
-  customer: {
-    firstName: ['Arjun', 'Priya', 'Rahul', 'Neha', 'Vikram', 'Ananya'][i % 6],
-    lastName: ['Mehta', 'Sharma', 'Gupta', 'Patel', 'Singh', 'Reddy'][i % 6],
-  },
-  items: [
-    { product: 'Royal Chronograph Watch', quantity: 1, reason: 'Defective product' },
-  ],
-  status: ['pending', 'approved', 'rejected', 'completed'][i % 4] as string,
-  refundAmount: Math.floor(Math.random() * 50000) + 5000,
-  reason: ['Defective product', 'Wrong size', 'Not as described', 'Changed mind', 'Damaged in transit'][i % 5],
-  createdAt: new Date(Date.now() - i * 86400000 * 2).toISOString(),
-}));
+import { returnsAPI } from '@/lib/api';
+import { ReturnRequest, Order } from '@/types';
+import { RotateCcw, CheckCircle, XCircle, Eye, Loader2 } from 'lucide-react';
 
 const statusColors: Record<string, 'success' | 'warning' | 'error' | 'info' | 'default'> = {
   pending: 'warning',
   approved: 'info',
   rejected: 'error',
   completed: 'success',
+  processing: 'info',
 };
+
+interface EnrichedReturn extends ReturnRequest {
+  customerName?: string;
+  order?: Order | string;
+}
 
 export default function ReturnsPage() {
   const [loading, setLoading] = useState(true);
+  const [returns, setReturns] = useState<EnrichedReturn[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [selectedReturn, setSelectedReturn] = useState<typeof mockReturns[0] | null>(null);
+  const [selectedReturn, setSelectedReturn] = useState<EnrichedReturn | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const pageSize = 10;
 
-  useEffect(() => {
-    setTimeout(() => setLoading(false), 600);
-  }, []);
+  const fetchReturns = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params: Record<string, string | number> = { page: currentPage, limit: pageSize };
+      if (statusFilter) params.status = statusFilter;
+      const res = await returnsAPI.getAll(params);
+      const data = res.data?.data;
+      setReturns(data?.data || data || []);
+      setTotalPages(data?.totalPages || 1);
+    } catch (err) {
+      console.error('Failed to fetch returns:', err);
+      setReturns([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, statusFilter]);
 
-  const filteredReturns = mockReturns.filter((r) => {
-    const matchSearch = search === '' ||
-      r.orderNumber.toLowerCase().includes(search.toLowerCase()) ||
-      `${r.customer.firstName} ${r.customer.lastName}`.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === '' || r.status === statusFilter;
-    return matchSearch && matchStatus;
+  useEffect(() => { fetchReturns(); }, [fetchReturns]);
+
+  const handleApprove = async (id: string) => {
+    try {
+      setActionLoading(id);
+      await returnsAPI.updateStatus(id, 'approved');
+      await fetchReturns();
+    } catch (err) {
+      console.error('Failed to approve return:', err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    try {
+      setActionLoading(id);
+      await returnsAPI.updateStatus(id, 'rejected');
+      await fetchReturns();
+    } catch (err) {
+      console.error('Failed to reject return:', err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const filteredReturns = returns.filter((r) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    const orderId = typeof r.orderId === 'string' ? r.orderId : '';
+    return (
+      orderId.toLowerCase().includes(q) ||
+      (r.customerName || '').toLowerCase().includes(q) ||
+      (r.reason || '').toLowerCase().includes(q)
+    );
   });
-
-  const totalPages = Math.ceil(filteredReturns.length / pageSize);
-  const paginatedReturns = filteredReturns.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const columns: Column<Record<string, unknown>>[] = [
     {
-      key: 'orderNumber',
+      key: 'orderId',
       label: 'Order',
-      render: (item) => <span className="font-semibold text-accent">{item.orderNumber as string}</span>,
+      render: (item) => {
+        const orderId = (item.orderId as string) || '';
+        return <span className="font-semibold text-accent">#{orderId.slice(0, 8)}</span>;
+      },
     },
     {
-      key: 'customer',
+      key: 'customerName',
       label: 'Customer',
-      render: (item) => {
-        const c = item.customer as Record<string, unknown>;
-        return <span className="text-navy">{c.firstName as string} {c.lastName as string}</span>;
-      },
+      render: (item) => <span className="text-navy">{(item.customerName as string) || 'Unknown'}</span>,
     },
     {
       key: 'reason',
       label: 'Reason',
-      render: (item) => <span className="text-text-secondary truncate max-w-[200px] block">{item.reason as string}</span>,
+      render: (item) => <span className="text-text-secondary truncate max-w-[200px] block">{(item.reason as string) || 'No reason provided'}</span>,
     },
     {
       key: 'refundAmount',
       label: 'Refund',
-      render: (item) => <span className="font-semibold text-navy">{formatCurrency(item.refundAmount as number)}</span>,
+      render: (item) => (
+        <span className="font-semibold text-navy">
+          {item.refundAmount != null ? formatCurrency(item.refundAmount as number) : '—'}
+        </span>
+      ),
     },
     {
       key: 'status',
       label: 'Status',
       render: (item) => (
-        <Badge variant={statusColors[item.status as string]} dot>
+        <Badge variant={statusColors[item.status as string] || 'default'} dot>
           {(item.status as string).charAt(0).toUpperCase() + (item.status as string).slice(1)}
         </Badge>
       ),
@@ -100,31 +138,45 @@ export default function ReturnsPage() {
       key: 'actions',
       label: '',
       className: 'w-24',
-      render: (item) => (
-        <div className="flex items-center gap-1">
-          {(item.status as string) === 'pending' && (
-            <>
-              <button className="p-1.5 text-text-muted hover:text-success hover:bg-success-bg rounded transition-colors" title="Approve">
-                <CheckCircle size={14} />
-              </button>
-              <button className="p-1.5 text-text-muted hover:text-error hover:bg-error-bg rounded transition-colors" title="Reject">
-                <XCircle size={14} />
-              </button>
-            </>
-          )}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedReturn(item as unknown as typeof mockReturns[0]);
-              setShowDetailModal(true);
-            }}
-            className="p-1.5 text-text-muted hover:text-accent hover:bg-info-bg rounded transition-colors"
-            title="View"
-          >
-            <Eye size={14} />
-          </button>
-        </div>
-      ),
+      render: (item) => {
+        const ret = item as unknown as EnrichedReturn;
+        const isProcessing = actionLoading === ret._id;
+        return (
+          <div className="flex items-center gap-1">
+            {ret.status === 'pending' && (
+              <>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleApprove(ret._id); }}
+                  disabled={isProcessing}
+                  className="p-1.5 text-text-muted hover:text-success hover:bg-success-bg rounded transition-colors disabled:opacity-50"
+                  title="Approve"
+                >
+                  {isProcessing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleReject(ret._id); }}
+                  disabled={isProcessing}
+                  className="p-1.5 text-text-muted hover:text-error hover:bg-error-bg rounded transition-colors disabled:opacity-50"
+                  title="Reject"
+                >
+                  {isProcessing ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
+                </button>
+              </>
+            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedReturn(ret);
+                setShowDetailModal(true);
+              }}
+              className="p-1.5 text-text-muted hover:text-accent hover:bg-info-bg rounded transition-colors"
+              title="View"
+            >
+              <Eye size={14} />
+            </button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -167,7 +219,7 @@ export default function ReturnsPage() {
 
         <DataTable
           columns={columns}
-          data={paginatedReturns}
+          data={filteredReturns as unknown as Record<string, unknown>[]}
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={setCurrentPage}
@@ -181,7 +233,7 @@ export default function ReturnsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-text-muted">Order</p>
-                  <p className="text-sm font-semibold text-navy">{selectedReturn.orderNumber}</p>
+                  <p className="text-sm font-semibold text-accent">#{(selectedReturn.orderId as string || '').slice(0, 8)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-text-muted">Status</p>
@@ -189,21 +241,58 @@ export default function ReturnsPage() {
                 </div>
                 <div>
                   <p className="text-xs text-text-muted">Customer</p>
-                  <p className="text-sm text-navy">{selectedReturn.customer.firstName} {selectedReturn.customer.lastName}</p>
+                  <p className="text-sm text-navy">{selectedReturn.customerName || 'Unknown'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-text-muted">Refund Amount</p>
-                  <p className="text-sm font-semibold text-navy">{formatCurrency(selectedReturn.refundAmount)}</p>
+                  <p className="text-sm font-semibold text-navy">
+                    {selectedReturn.refundAmount != null ? formatCurrency(selectedReturn.refundAmount) : '—'}
+                  </p>
                 </div>
               </div>
               <div>
                 <p className="text-xs text-text-muted mb-1">Reason</p>
-                <p className="text-sm text-navy bg-gray-50 p-3 rounded-lg">{selectedReturn.reason}</p>
+                <p className="text-sm text-navy bg-gray-50 p-3 rounded-lg">{selectedReturn.reason || 'No reason provided'}</p>
               </div>
+              {selectedReturn.items && selectedReturn.items.length > 0 && (
+                <div>
+                  <p className="text-xs text-text-muted mb-1">Items</p>
+                  <div className="space-y-1">
+                    {selectedReturn.items.map((item, idx) => (
+                      <div key={idx} className="flex justify-between text-sm bg-gray-50 p-2 rounded">
+                        <span className="text-navy">{item.name || 'Product'}</span>
+                        <span className="text-text-secondary">Qty: {item.quantity} — {item.reason}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {selectedReturn.adminNote && (
+                <div>
+                  <p className="text-xs text-text-muted mb-1">Admin Note</p>
+                  <p className="text-sm text-navy bg-gray-50 p-3 rounded-lg">{selectedReturn.adminNote}</p>
+                </div>
+              )}
               {selectedReturn.status === 'pending' && (
                 <div className="flex justify-end gap-2 pt-2 border-t border-border">
-                  <Button variant="danger" size="sm" icon={<XCircle size={15} />}>Reject</Button>
-                  <Button variant="primary" size="sm" icon={<CheckCircle size={15} />}>Approve Return</Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    icon={<XCircle size={15} />}
+                    onClick={() => { handleReject(selectedReturn._id); setShowDetailModal(false); }}
+                    disabled={actionLoading === selectedReturn._id}
+                  >
+                    Reject
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    icon={<CheckCircle size={15} />}
+                    onClick={() => { handleApprove(selectedReturn._id); setShowDetailModal(false); }}
+                    disabled={actionLoading === selectedReturn._id}
+                  >
+                    Approve Return
+                  </Button>
                 </div>
               )}
             </div>

@@ -111,6 +111,17 @@ export const variantsAPI = {
   notifyWhenAvailable: (id: string) => api.post(`/variants/${id}/notify-when-available`),
 };
 
+export const returnsAPI = {
+  getAll: (params?: Record<string, string | number>) => api.get('/admin/returns', { params }),
+  updateStatus: (id: string, status: string, adminNote?: string) => api.put(`/admin/returns/${id}/status`, { status, adminNote }),
+};
+
+export const notificationsAPI = {
+  getAll: (params?: Record<string, string | number>) => api.get('/admin/notifications', { params }),
+  send: (data: { userId?: string; userIds?: string[]; type?: string; title: string; body: string }) => api.post('/admin/notifications/send', data),
+  markRead: (id: string) => api.put(`/admin/notifications/${id}/read`),
+};
+
 export const auditAPI = {
   getLogs: (params?: any) => api.get('/admin/audit-logs', { params }),
 };

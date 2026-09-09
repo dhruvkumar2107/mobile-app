@@ -5,16 +5,40 @@ import AdminLayout from '@/components/AdminLayout';
 import Button from '@/components/Button';
 import Tabs from '@/components/Tabs';
 import { User, Store, Shield, Bell, CreditCard, Save, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
-import { settingsAPI } from '@/lib/api';
+import { settingsAPI, authAPI } from '@/lib/api';
 
 interface Settings {
   storeName: string;
+  storeDescription: string;
   storeUrl: string;
   contactEmail: string;
   phone: string;
   address: string;
   currency: string;
   timezone: string;
+  taxRate: number;
+  freeShippingThreshold: number;
+  shippingCharge: number;
+  minOrderAmount: number;
+  maxOrderAmount: number;
+  returnWindowDays: number;
+  supportEmail: string;
+  supportPhone: string;
+}
+
+interface Profile {
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+interface NotificationPrefs {
+  newOrders: boolean;
+  lowStock: boolean;
+  reviews: boolean;
+  paymentFailures: boolean;
+  dailyReports: boolean;
+  campaignUpdates: boolean;
 }
 
 export default function SettingsPage() {
@@ -22,34 +46,71 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('store');
   const [settings, setSettings] = useState<Settings>({
-    storeName: 'LUXE',
-    storeUrl: 'https://luxe.com',
-    contactEmail: 'support@luxe.com',
-    phone: '+91 1800-123-4567',
-    address: '42 Luxury Avenue, Bandra West, Mumbai 400050',
+    storeName: '',
+    storeDescription: '',
+    storeUrl: '',
+    contactEmail: '',
+    phone: '',
+    address: '',
     currency: 'INR',
     timezone: 'Asia/Kolkata',
+    taxRate: 15,
+    freeShippingThreshold: 999,
+    shippingCharge: 99,
+    minOrderAmount: 499,
+    maxOrderAmount: 500000,
+    returnWindowDays: 30,
+    supportEmail: '',
+    supportPhone: '',
   });
-  const [profile, setProfile] = useState({ firstName: 'Admin', lastName: 'User', email: 'admin@luxe.com' });
-  const [notifications, setNotifications] = useState({
+  const [profile, setProfile] = useState<Profile>({ firstName: '', lastName: '', email: '' });
+  const [notifications, setNotifications] = useState<NotificationPrefs>({
     newOrders: true, lowStock: true, reviews: true, paymentFailures: true, dailyReports: false, campaignUpdates: false,
   });
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const fetchSettings = useCallback(async () => {
     try {
-      const res = await settingsAPI.get();
-      const data = res.data?.data || res.data;
-      if (data) {
-        setSettings(prev => ({
-          storeName: data.storeName || prev.storeName,
-          storeUrl: data.storeUrl || prev.storeUrl,
-          contactEmail: data.supportEmail || prev.contactEmail,
-          phone: data.supportPhone || prev.phone,
-          address: prev.address,
-          currency: data.currency || prev.currency,
-          timezone: prev.timezone,
-        }));
+      setLoading(true);
+      const [settingsRes, profileRes] = await Promise.allSettled([
+        settingsAPI.get(),
+        authAPI.getProfile(),
+      ]);
+
+      if (settingsRes.status === 'fulfilled') {
+        const data = settingsRes.value.data?.data || settingsRes.value.data;
+        if (data) {
+          setSettings({
+            storeName: data.storeName || '',
+            storeDescription: data.storeDescription || '',
+            storeUrl: data.storeUrl || '',
+            contactEmail: data.supportEmail || '',
+            phone: data.supportPhone || '',
+            address: data.address || '',
+            currency: data.currency || 'INR',
+            timezone: data.timezone || 'Asia/Kolkata',
+            taxRate: data.taxRate ?? 15,
+            freeShippingThreshold: data.freeShippingThreshold ?? 999,
+            shippingCharge: data.shippingCharge ?? 99,
+            minOrderAmount: data.minOrderAmount ?? 499,
+            maxOrderAmount: data.maxOrderAmount ?? 500000,
+            returnWindowDays: data.returnWindowDays ?? 30,
+            supportEmail: data.supportEmail || '',
+            supportPhone: data.supportPhone || '',
+          });
+        }
+      }
+
+      if (profileRes.status === 'fulfilled') {
+        const userData = profileRes.value.data?.data || profileRes.value.data;
+        if (userData) {
+          const nameParts = (userData.name || '').split(' ');
+          setProfile({
+            firstName: nameParts[0] || userData.firstName || '',
+            lastName: nameParts.slice(1).join(' ') || userData.lastName || '',
+            email: userData.email || '',
+          });
+        }
       }
     } catch (err) {
       console.error('Failed to fetch settings:', err);
@@ -68,7 +129,19 @@ export default function SettingsPage() {
   const handleSaveSettings = async () => {
     setSaving(true);
     try {
-      await settingsAPI.update(settings as unknown as Record<string, unknown>);
+      await settingsAPI.update({
+        storeName: settings.storeName,
+        storeDescription: settings.storeDescription,
+        currency: settings.currency,
+        taxRate: settings.taxRate,
+        freeShippingThreshold: settings.freeShippingThreshold,
+        shippingCharge: settings.shippingCharge,
+        minOrderAmount: settings.minOrderAmount,
+        maxOrderAmount: settings.maxOrderAmount,
+        returnWindowDays: settings.returnWindowDays,
+        supportEmail: settings.contactEmail,
+        supportPhone: settings.phone,
+      });
       showMessage('success', 'Settings saved successfully!');
     } catch (err) {
       console.error('Failed to save settings:', err);
@@ -81,7 +154,8 @@ export default function SettingsPage() {
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
-      await settingsAPI.update({ profile });
+      const fullName = `${profile.firstName} ${profile.lastName}`.trim();
+      await settingsAPI.update({ profile: { name: fullName, email: profile.email } });
       showMessage('success', 'Profile updated successfully!');
     } catch (err) {
       console.error('Failed to save profile:', err);
@@ -94,7 +168,7 @@ export default function SettingsPage() {
   const handleSaveNotifications = async () => {
     setSaving(true);
     try {
-      await settingsAPI.update({ notifications });
+      await settingsAPI.update({ notificationPreferences: notifications });
       showMessage('success', 'Notification preferences saved!');
     } catch (err) {
       console.error('Failed to save notifications:', err);
@@ -154,10 +228,6 @@ export default function SettingsPage() {
                 <input value={settings.storeName} onChange={(e) => setSettings({ ...settings, storeName: e.target.value })} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-navy mb-1.5">Store URL</label>
-                <input value={settings.storeUrl} onChange={(e) => setSettings({ ...settings, storeUrl: e.target.value })} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent" />
-              </div>
-              <div>
                 <label className="block text-sm font-medium text-navy mb-1.5">Contact Email</label>
                 <input value={settings.contactEmail} onChange={(e) => setSettings({ ...settings, contactEmail: e.target.value })} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent" />
               </div>
@@ -165,25 +235,41 @@ export default function SettingsPage() {
                 <label className="block text-sm font-medium text-navy mb-1.5">Phone</label>
                 <input value={settings.phone} onChange={(e) => setSettings({ ...settings, phone: e.target.value })} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent" />
               </div>
-              <div className="col-span-2">
-                <label className="block text-sm font-medium text-navy mb-1.5">Address</label>
-                <input value={settings.address} onChange={(e) => setSettings({ ...settings, address: e.target.value })} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent" />
-              </div>
               <div>
                 <label className="block text-sm font-medium text-navy mb-1.5">Currency</label>
                 <select value={settings.currency} onChange={(e) => setSettings({ ...settings, currency: e.target.value })} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent">
-                  <option>INR</option>
-                  <option>USD</option>
-                  <option>EUR</option>
+                  <option value="INR">INR</option>
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
                 </select>
               </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-navy mb-1.5">Description</label>
+                <input value={settings.storeDescription} onChange={(e) => setSettings({ ...settings, storeDescription: e.target.value })} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent" />
+              </div>
               <div>
-                <label className="block text-sm font-medium text-navy mb-1.5">Timezone</label>
-                <select value={settings.timezone} onChange={(e) => setSettings({ ...settings, timezone: e.target.value })} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent">
-                  <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
-                  <option value="America/New_York">America/New_York (EST)</option>
-                  <option value="Europe/London">Europe/London (GMT)</option>
-                </select>
+                <label className="block text-sm font-medium text-navy mb-1.5">Tax Rate (%)</label>
+                <input type="number" value={settings.taxRate} onChange={(e) => setSettings({ ...settings, taxRate: Number(e.target.value) })} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-navy mb-1.5">Free Shipping Threshold</label>
+                <input type="number" value={settings.freeShippingThreshold} onChange={(e) => setSettings({ ...settings, freeShippingThreshold: Number(e.target.value) })} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-navy mb-1.5">Shipping Charge</label>
+                <input type="number" value={settings.shippingCharge} onChange={(e) => setSettings({ ...settings, shippingCharge: Number(e.target.value) })} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-navy mb-1.5">Return Window (days)</label>
+                <input type="number" value={settings.returnWindowDays} onChange={(e) => setSettings({ ...settings, returnWindowDays: Number(e.target.value) })} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-navy mb-1.5">Min Order Amount</label>
+                <input type="number" value={settings.minOrderAmount} onChange={(e) => setSettings({ ...settings, minOrderAmount: Number(e.target.value) })} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-navy mb-1.5">Max Order Amount</label>
+                <input type="number" value={settings.maxOrderAmount} onChange={(e) => setSettings({ ...settings, maxOrderAmount: Number(e.target.value) })} className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent" />
               </div>
             </div>
             <div className="flex justify-end pt-2">
@@ -202,7 +288,7 @@ export default function SettingsPage() {
             </div>
             <div className="flex items-center gap-4 mb-6">
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gold to-gold-dark flex items-center justify-center text-navy text-2xl font-bold">
-                {profile.firstName.charAt(0)}{profile.lastName.charAt(0)}
+                {profile.firstName ? profile.firstName.charAt(0) : ''}{profile.lastName ? profile.lastName.charAt(0) : ''}
               </div>
               <div>
                 <Button variant="secondary" size="sm" onClick={() => document.getElementById('avatar-upload')?.click()}>

@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, SHADOWS } from '../utils/theme';
-import { productsAPI, wishlistAPI, reviewsAPI, variantsAPI } from '../api/client';
+import { productsAPI, wishlistAPI, reviewsAPI, variantsAPI, recentlyViewedAPI } from '../api/client';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import Price from '../components/Price';
@@ -407,6 +407,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
   const [addingToCart, setAddingToCart] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
   const scrollY = useRef(new Animated.Value(0)).current;
+  const priceHighlight = useRef(new Animated.Value(0)).current;
   const { addToCart } = useCart();
   const { isAuthenticated } = useAuth();
   const MAX_QUANTITY = 10;
@@ -415,6 +416,18 @@ const ProductDetailScreen = ({ route, navigation }) => {
   const [selectedVariant, setSelectedVariant] = useState(null);
 
   useEffect(() => { fetchProduct(); }, [productId]);
+
+  useEffect(() => {
+    if (product && productId) {
+      recentlyViewedAPI.track(productId).catch(() => {});
+    }
+  }, [product?.id || product?._id]);
+
+  const getDeliveryDate = () => {
+    const date = new Date();
+    date.setDate(date.getDate() + 7);
+    return date.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+  };
 
   const fetchProduct = async () => {
     try {
@@ -517,12 +530,19 @@ const ProductDetailScreen = ({ route, navigation }) => {
 
   const toggleWishlist = async () => {
     if (!isAuthenticated) { navigation.navigate('Auth'); return; }
+    const wasWishlisted = isWishlisted;
     setIsWishlisted(!isWishlisted);
     try {
-      if (isWishlisted) await wishlistAPI.remove(productId);
-      else await wishlistAPI.add(productId);
+      if (wasWishlisted) {
+        await wishlistAPI.remove(productId);
+        setToast({ visible: true, message: 'Removed from wishlist', type: 'info' });
+      } else {
+        await wishlistAPI.add(productId);
+        setToast({ visible: true, message: 'Added to wishlist', type: 'success' });
+      }
     } catch (error) {
-      setIsWishlisted(isWishlisted);
+      setIsWishlisted(wasWishlisted);
+      setToast({ visible: true, message: 'Failed to update wishlist', type: 'error' });
     }
   };
 
@@ -534,6 +554,10 @@ const ProductDetailScreen = ({ route, navigation }) => {
 
   const handleVariantSelect = (variant) => {
     setSelectedVariant(variant);
+    Animated.sequence([
+      Animated.timing(priceHighlight, { toValue: 1, duration: 150, useNativeDriver: false }),
+      Animated.timing(priceHighlight, { toValue: 0, duration: 300, useNativeDriver: false }),
+    ]).start();
   };
 
   if (loading || !product) {
@@ -630,7 +654,12 @@ const ProductDetailScreen = ({ route, navigation }) => {
             )}
           </View>
 
-          <View style={styles.priceSection}>
+          <Animated.View style={[styles.priceSection, {
+            backgroundColor: priceHighlight.interpolate({
+              inputRange: [0, 1],
+              outputRange: [COLORS.surface, COLORS.secondary + '10'],
+            }),
+          }]}>
             <Price price={effectivePrice} mrp={effectiveMrp} size="lg" />
             <Text style={styles.inclusiveText}>Inclusive of all taxes</Text>
             {discount > 0 && (
@@ -644,6 +673,18 @@ const ProductDetailScreen = ({ route, navigation }) => {
                 <Text style={styles.priceNoteText}>Variant price differs from base price ({formatPrice(product.price)})</Text>
               </View>
             )}
+          </Animated.View>
+
+          <View style={styles.deliverySection}>
+            <View style={styles.deliveryRow}>
+              <View style={styles.deliveryIconWrap}>
+                <Ionicons name="car-outline" size={20} color={COLORS.secondary} />
+              </View>
+              <View style={styles.deliveryInfo}>
+                <Text style={styles.deliveryLabel}>Delivery by {getDeliveryDate()}</Text>
+                <Text style={styles.deliverySubtext}>Free delivery on orders above ₹999</Text>
+              </View>
+            </View>
           </View>
 
           {variants.length > 0 && (
@@ -887,6 +928,19 @@ const styles = StyleSheet.create({
   savingsText: { fontSize: SIZES.font.sm, color: COLORS.success, fontWeight: '600' },
   priceNote: { marginTop: SIZES.sm },
   priceNoteText: { fontSize: SIZES.font.xs, color: COLORS.textSecondary, fontStyle: 'italic' },
+  deliverySection: {
+    paddingVertical: SIZES.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  deliveryRow: { flexDirection: 'row', alignItems: 'center', gap: SIZES.md },
+  deliveryIconWrap: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.secondary + '15',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  deliveryInfo: { flex: 1 },
+  deliveryLabel: { fontSize: SIZES.font.md, fontWeight: '700', color: COLORS.textPrimary },
+  deliverySubtext: { fontSize: SIZES.font.sm, color: COLORS.textSecondary, marginTop: 2 },
   variantSection: { paddingVertical: SIZES.lg, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   variantLabel: { fontSize: SIZES.font.md, fontWeight: '700', color: COLORS.textPrimary, marginBottom: SIZES.sm },
   variantOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: SIZES.sm },
