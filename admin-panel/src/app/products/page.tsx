@@ -129,7 +129,7 @@ export default function ProductsPage() {
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg flex items-center justify-center overflow-hidden" aria-hidden="true">
             {(item.images as string[])?.[0] ? (
-              <img src={(item.images as string[])[0]} alt={item.name as string} className="w-full h-full object-cover" />
+              <img src={(item.images as string[])[0]} alt={item.name as string} className="w-full h-full object-contain" />
             ) : (
               <span className="text-xs font-bold text-text-muted">LX</span>
             )}
@@ -304,7 +304,7 @@ export default function ProductsPage() {
                 >
                   <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg mb-3 flex items-center justify-center group-hover:from-gray-200 group-hover:to-gray-300 transition-colors overflow-hidden" aria-hidden="true">
                     {(product.images as string[])?.[0] ? (
-                      <img src={(product.images as string[])[0]} alt={product.name as string} className="w-full h-full object-cover" />
+                      <img src={(product.images as string[])[0]} alt={product.name as string} className="w-full h-full object-contain" />
                     ) : (
                       <span className="text-3xl font-bold text-gray-300">LX</span>
                     )}
