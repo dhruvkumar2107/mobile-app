@@ -116,10 +116,12 @@ export default function InventoryPage() {
       const params: Record<string, string | number> = { page: currentPage, limit: pageSize };
       const res = await inventoryAPI.getAll(params);
       const d = res.data;
-      const data = d.data || d.inventory || d;
-      if (Array.isArray(data)) {
-        setInventory(data);
-        setTotalPages(d.totalPages || Math.ceil((d.total || data.length) / pageSize));
+      const raw = d.data || d.inventory || d;
+      const items = Array.isArray(raw) ? raw : (raw?.items || []);
+      if (items.length > 0) {
+        const mapped = items.map((inv: Record<string, unknown>) => ({ ...inv, _id: inv.id || inv._id }));
+        setInventory(mapped);
+        setTotalPages(d.totalPages || raw?.totalPages || Math.ceil((d.total || raw?.total || items.length) / pageSize));
       } else {
         setInventory(mockInventory);
         setTotalPages(3);

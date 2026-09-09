@@ -60,10 +60,12 @@ export default function ProductsPage() {
       if (search) params.search = search;
       const res = await productsAPI.getAll(params);
       const d = res.data;
-      const data = d.data || d.products || d;
-      if (Array.isArray(data)) {
-        setProducts(data);
-        setTotalPages(d.totalPages || Math.ceil((d.total || data.length) / pageSize));
+      const raw = d.data || d.products || d;
+      const items = Array.isArray(raw) ? raw : (raw?.items || []);
+      if (items.length > 0) {
+        const mapped = items.map((p: Record<string, unknown>) => ({ ...p, _id: p.id || p._id }));
+        setProducts(mapped);
+        setTotalPages(d.totalPages || raw?.totalPages || Math.ceil((d.total || raw?.total || items.length) / pageSize));
       } else {
         setProducts(mockProducts);
         setTotalPages(4);
@@ -126,7 +128,11 @@ export default function ProductsPage() {
       render: (item) => (
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg flex items-center justify-center overflow-hidden" aria-hidden="true">
-            <span className="text-xs font-bold text-text-muted">LX</span>
+            {(item.images as string[])?.[0] ? (
+              <img src={(item.images as string[])[0]} alt={item.name as string} className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-xs font-bold text-text-muted">LX</span>
+            )}
           </div>
           <div>
             <p className="text-sm font-medium text-navy">{item.name as string}</p>
@@ -296,8 +302,12 @@ export default function ProductsPage() {
                   tabIndex={0}
                   onKeyDown={(e) => { if (e.key === 'Enter') window.location.href = `/products/${product._id}`; }}
                 >
-                  <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg mb-3 flex items-center justify-center group-hover:from-gray-200 group-hover:to-gray-300 transition-colors" aria-hidden="true">
-                    <span className="text-3xl font-bold text-gray-300">LX</span>
+                  <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg mb-3 flex items-center justify-center group-hover:from-gray-200 group-hover:to-gray-300 transition-colors overflow-hidden" aria-hidden="true">
+                    {(product.images as string[])?.[0] ? (
+                      <img src={(product.images as string[])[0]} alt={product.name as string} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-3xl font-bold text-gray-300">LX</span>
+                    )}
                   </div>
                   <Badge variant={statusColors[product.status as string] || 'default'} size="sm">{product.status as string}</Badge>
                   <h3 className="text-sm font-medium text-navy mt-2 line-clamp-1">{product.name as string}</h3>

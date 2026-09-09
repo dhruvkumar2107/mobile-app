@@ -62,10 +62,12 @@ export default function OrdersPage() {
       if (search) params.search = search;
       const res = await ordersAPI.getAll(params);
       const d = res.data;
-      const data = d.data || d.orders || d;
-      if (Array.isArray(data)) {
-        setOrders(data);
-        setTotalPages(d.totalPages || Math.ceil((d.total || data.length) / pageSize));
+      const raw = d.data || d.orders || d;
+      const items = Array.isArray(raw) ? raw : (raw?.items || []);
+      if (items.length > 0) {
+        const mapped = items.map((o: Record<string, unknown>) => ({ ...o, _id: o.id || o._id }));
+        setOrders(mapped);
+        setTotalPages(d.totalPages || raw?.totalPages || Math.ceil((d.total || raw?.total || items.length) / pageSize));
       } else {
         setOrders(mockOrders);
         setTotalPages(5);

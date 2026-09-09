@@ -57,10 +57,12 @@ export default function ReviewsPage() {
       const params: Record<string, string | number> = { page: currentPage, limit: pageSize };
       const res = await reviewsAPI.getAll(params);
       const d = res.data;
-      const data = d.data || d.reviews || d;
-      if (Array.isArray(data)) {
-        setReviews(data);
-        setTotalPages(d.totalPages || Math.ceil((d.total || data.length) / pageSize));
+      const raw = d.data || d.reviews || d;
+      const items = Array.isArray(raw) ? raw : (raw?.items || []);
+      if (items.length > 0) {
+        const mapped = items.map((r: Record<string, unknown>) => ({ ...r, _id: r.id || r._id }));
+        setReviews(mapped);
+        setTotalPages(d.totalPages || raw?.totalPages || Math.ceil((d.total || raw?.total || items.length) / pageSize));
       } else {
         setReviews(mockReviews);
         setTotalPages(3);

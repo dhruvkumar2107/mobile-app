@@ -38,12 +38,12 @@ export default function CustomersPage() {
       if (statusFilter) params.status = statusFilter;
       const res = await customersAPI.getAll(params);
       const d = res.data;
-      const data = d.data || d.customers || d;
-      if (Array.isArray(data)) {
-        setCustomers(data);
-        setTotalPages(d.totalPages || Math.ceil((d.total || data.length) / PAGE_SIZE));
-        setTotal(d.total || data.length);
-      }
+      const raw = d.data || d.customers || d;
+      const items = Array.isArray(raw) ? raw : (raw?.items || []);
+      const mapped = items.map((c: Record<string, unknown>) => ({ ...c, _id: c.id || c._id }));
+      setCustomers(mapped);
+      setTotalPages(d.totalPages || raw?.totalPages || Math.ceil((d.total || raw?.total || items.length) / PAGE_SIZE));
+      setTotal(d.total || raw?.total || items.length);
     } catch {
       setCustomers([]);
       setTotalPages(1);

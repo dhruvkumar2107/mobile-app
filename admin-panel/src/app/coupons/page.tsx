@@ -48,10 +48,12 @@ export default function CouponsPage() {
     try {
       const res = await couponsAPI.getAll();
       const d = res.data;
-      const data = d.data || d.coupons || d;
-      if (Array.isArray(data)) {
-        setCoupons(data);
-        setTotalPages(d.totalPages || Math.ceil((d.total || data.length) / pageSize));
+      const raw = d.data || d.coupons || d;
+      const items = Array.isArray(raw) ? raw : (raw?.items || []);
+      if (items.length > 0) {
+        const mapped = items.map((c: Record<string, unknown>) => ({ ...c, _id: c.id || c._id }));
+        setCoupons(mapped);
+        setTotalPages(d.totalPages || raw?.totalPages || Math.ceil((d.total || raw?.total || items.length) / pageSize));
       } else {
         setCoupons(mockCoupons);
         setTotalPages(2);
